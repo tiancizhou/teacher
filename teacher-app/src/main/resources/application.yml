@@ -36,46 +36,57 @@ spring:
 # 书法批改系统配置
 # ============================
 teacher:
-  # OpenCV 图像处理参数
+  # API Keys（逗号分隔，启动时自动加载到调度池）
+  # 你只有一个反代 Key 的话，填一个就行
+  api-keys: qq5201314
+
+  # OpenCV 图像处理参数（已针对格子练字纸优化）
   opencv:
     binary-threshold: 127
-    min-contour-area: 500
+    min-contour-area: 800              # 最小轮廓面积，过滤噪点
+    max-contour-area-ratio: 0.25       # 最大轮廓面积占比，过滤整页边框
     adaptive-block-size: 15
     adaptive-c: 10
     gaussian-kernel-size: 5
     perspective-correction-enabled: true
-    dilate-iterations: 2
-    min-char-gap: 10
+    dilate-iterations: 1               # 降为1，避免字与字粘连
+    min-char-gap: 5                    # 降为5，只合并极近的笔画碎片
+    grid-removal-enabled: true         # 启用网格线去除（格子练字纸必开）
+    grid-line-min-ratio: 0.25          # 网格线最小长度占图片宽/高的比例
+    max-aspect-ratio: 3.0              # 宽高比上限，过滤残留线段
+    char-padding: 8                    # 切分时每字留白边距
 
   # 算力调度中心配置
   dispatcher:
     # 存储类型: memory（默认，零依赖轻量部署）/ redis（分布式多实例）
     storage-type: memory
-    max-concurrent: 15
-    retry-count: 3
+    max-concurrent: 15                   # 最大并发（受 Key 数量约束，取较小值）
+    retry-count: 2                       # AI 调用失败重试次数
     key-pool-name: "ai:key:pool"
     failed-key-pool-name: "ai:key:failed"
     key-cooldown-seconds: 60
     rate-limit-window-seconds: 60
     rate-limit-max-requests: 50
-    key-borrow-timeout-seconds: 10
+    key-borrow-timeout-seconds: 120      # Key 等待超时（单 Key 需等前一个完成）
+    max-characters-per-batch: 30         # 单次最多批改字数（防止排队过久）
 
   # AI 模型配置
   ai:
     provider: openai  # openai 或 anthropic
-    multi-agent-enabled: false  # 是否启用多Agent模式
-    request-timeout-seconds: 30
-    max-image-size: 512
+    multi-agent-enabled: false
+    request-timeout-seconds: 120            # 整页分析可能需要较长时间
+    max-image-size: 1024                    # 整页图需要更高分辨率
     openai:
-      base-url: https://api.openai.com/v1
-      model: gpt-4o
+      # CLIProxyAPI 反代地址（代码会自动拼接 /chat/completions）
+      base-url: http://127.0.0.1:8317/v1
+      model: gpt-5.3-codex               # 视觉模型，擅长看图
       temperature: 0.3
-      max-tokens: 1024
+      max-tokens: 4096                      # 整页分析输出更多内容
     anthropic:
       base-url: https://api.anthropic.com/v1
       model: claude-3-5-sonnet-20241022
       temperature: 0.3
-      max-tokens: 1024
+      max-tokens: 4096
 
 logging:
   level:

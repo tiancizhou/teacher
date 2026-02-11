@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 全局异常处理器。
@@ -27,6 +28,14 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleFileSizeException(MaxUploadSizeExceededException e) {
         return ApiResponse.error("FILE_TOO_LARGE", "上传文件过大，请压缩后重试（最大 10MB）");
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiResponse<Void> handleNoResourceFound(NoResourceFoundException e) {
+        // favicon.ico 等静态资源找不到，不打 ERROR 日志
+        log.debug("静态资源未找到: {}", e.getResourcePath());
+        return ApiResponse.error("NOT_FOUND", "资源不存在");
     }
 
     @ExceptionHandler(Exception.class)

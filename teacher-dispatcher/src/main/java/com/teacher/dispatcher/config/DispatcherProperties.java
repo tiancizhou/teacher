@@ -34,6 +34,9 @@ public class DispatcherProperties {
     /** 每个 Key 在窗口内的最大请求数 */
     private int rateLimitMaxRequests = 50;
 
-    /** 借用 Key 的超时时间（秒） */
-    private int keyBorrowTimeoutSeconds = 10;
+    /** 借用 Key 的超时时间（秒），单 Key 场景需足够长以等待前一个任务完成 */
+    private int keyBorrowTimeoutSeconds = 120;
+
+    /** 单次批改的最大字符数（超出部分截断，避免请求过长） */
+    private int maxCharactersPerBatch = 30;
 }

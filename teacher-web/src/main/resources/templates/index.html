@@ -5,6 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI书法批改助手</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --charcoal: #2c2c2c;
+            --ink: #1a1a2e;
+            --cream: #f5f0e8;
+            --cream-light: #faf7f2;
+            --gold: #c4a055;
+            --gold-light: #d4b876;
+            --gold-dark: #a8883e;
+            --cinnabar: #c23a2e;
+            --cinnabar-light: #d94e42;
+            --indigo: #3d4f7c;
+            --indigo-light: #5a6e9e;
+            --paper: #f2ece0;
+            --paper-dark: #e8dfd0;
+            --grey-text: #8a8578;
+            --grey-light: #b5ae9f;
+            --ink-blue: #2c3e6b;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,78 +33,143 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
-                'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--cream);
             min-height: 100vh;
-            color: #333;
+            color: var(--charcoal);
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* ==================== Rice Paper Background ==================== */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background:
+                /* Ink wash cloud motifs */
+                radial-gradient(ellipse 600px 300px at 10% 20%, rgba(61,79,124,0.06) 0%, transparent 70%),
+                radial-gradient(ellipse 500px 400px at 85% 15%, rgba(61,79,124,0.05) 0%, transparent 60%),
+                radial-gradient(ellipse 700px 350px at 50% 80%, rgba(61,79,124,0.04) 0%, transparent 70%),
+                radial-gradient(ellipse 400px 250px at 20% 70%, rgba(196,160,85,0.04) 0%, transparent 60%),
+                radial-gradient(ellipse 450px 300px at 75% 60%, rgba(194,58,46,0.02) 0%, transparent 60%),
+                /* Paper texture grain */
+                url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Decorative ink wash top band */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 280px;
+            background: linear-gradient(180deg,
+                rgba(44,62,107,0.12) 0%,
+                rgba(61,79,124,0.06) 40%,
+                transparent 100%);
+            pointer-events: none;
+            z-index: 0;
         }
 
         .container {
-            max-width: 960px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 40px 20px;
+            position: relative;
+            z-index: 1;
         }
 
-        /* Header */
+        /* ==================== Header ==================== */
         .header {
             text-align: center;
-            color: white;
-            margin-bottom: 40px;
+            margin-bottom: 48px;
+            position: relative;
         }
 
         .header h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 8px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            font-family: 'Noto Serif SC', 'STSong', 'SimSun', serif;
+            font-size: 3rem;
+            font-weight: 900;
+            color: var(--ink);
+            letter-spacing: 8px;
+            margin-bottom: 12px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1), 0 0 40px rgba(61,79,124,0.1);
+            position: relative;
+            display: inline-block;
+        }
+
+        /* Decorative brush stroke under title */
+        .header h1::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--gold), var(--gold-dark), var(--gold), transparent);
+            border-radius: 2px;
         }
 
         .header p {
-            font-size: 1.1rem;
-            opacity: 0.9;
+            font-size: 1rem;
+            color: var(--grey-text);
+            margin-top: 16px;
+            letter-spacing: 2px;
+            font-weight: 300;
         }
 
-        /* Card */
+        /* ==================== Card Base ==================== */
         .card {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-            padding: 40px;
+            background: var(--cream-light);
+            border-radius: 12px;
+            box-shadow:
+                0 2px 20px rgba(0,0,0,0.06),
+                0 1px 3px rgba(0,0,0,0.04),
+                inset 0 1px 0 rgba(255,255,255,0.8);
+            padding: 36px;
             margin-bottom: 30px;
+            border: 1px solid rgba(196,160,85,0.15);
+            position: relative;
         }
 
-        /* Upload Area */
+        /* ==================== Upload Area ==================== */
         .upload-area {
-            border: 3px dashed #d1d5db;
+            border: 2px dashed var(--grey-light);
             border-radius: 12px;
             padding: 60px 20px;
             text-align: center;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.4s ease;
             position: relative;
-            background: #fafbfc;
+            background: linear-gradient(135deg, var(--cream-light), var(--paper));
         }
 
         .upload-area:hover, .upload-area.dragover {
-            border-color: #667eea;
-            background: #f0f0ff;
+            border-color: var(--gold);
+            background: linear-gradient(135deg, #faf5eb, #f5ece0);
+            box-shadow: 0 0 0 4px rgba(196,160,85,0.08);
         }
 
         .upload-area .icon {
-            font-size: 48px;
+            font-size: 52px;
             margin-bottom: 16px;
+            filter: grayscale(30%);
         }
 
         .upload-area h3 {
-            font-size: 1.2rem;
-            color: #374151;
+            font-family: 'Noto Serif SC', serif;
+            font-size: 1.15rem;
+            color: var(--charcoal);
             margin-bottom: 8px;
+            font-weight: 600;
         }
 
         .upload-area p {
-            color: #9ca3af;
-            font-size: 0.9rem;
+            color: var(--grey-text);
+            font-size: 0.85rem;
         }
 
         .upload-area input[type="file"] {
@@ -100,6 +186,7 @@
         .preview-section {
             display: none;
             margin-top: 24px;
+            text-align: center;
         }
 
         .preview-section.visible {
@@ -109,62 +196,417 @@
         .preview-img {
             max-width: 100%;
             max-height: 300px;
-            border-radius: 8px;
-            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            border: 3px solid var(--paper-dark);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
         }
 
-        /* Button */
+        /* ==================== Buttons ==================== */
         .btn-primary {
             display: inline-block;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
+            background: var(--cinnabar);
+            color: #fff;
             border: none;
             padding: 14px 48px;
-            font-size: 1.1rem;
+            font-size: 1.05rem;
             font-weight: 600;
-            border-radius: 8px;
+            border-radius: 4px;
             cursor: pointer;
             transition: all 0.3s ease;
             margin-top: 24px;
+            font-family: 'Noto Serif SC', serif;
+            letter-spacing: 4px;
+            position: relative;
+            box-shadow: 0 4px 16px rgba(194,58,46,0.25);
         }
 
         .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            background: var(--cinnabar-light);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px rgba(194,58,46,0.3);
         }
 
         .btn-primary:disabled {
-            opacity: 0.6;
+            opacity: 0.5;
             cursor: not-allowed;
             transform: none;
         }
 
-        /* Loading */
+        /* Seal-style button */
+        .btn-seal {
+            display: inline-block;
+            background: var(--cinnabar);
+            color: #fff;
+            border: 2px solid var(--cinnabar);
+            padding: 12px 36px;
+            font-size: 1rem;
+            font-weight: 700;
+            font-family: 'Noto Serif SC', serif;
+            letter-spacing: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            box-shadow:
+                0 4px 16px rgba(194,58,46,0.3),
+                inset 0 0 0 2px rgba(255,255,255,0.15);
+            border-radius: 2px;
+        }
+
+        .btn-seal:hover {
+            background: var(--cinnabar-light);
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 8px 28px rgba(194,58,46,0.35);
+        }
+
+        /* ==================== Loading ==================== */
         .loading {
             display: none;
             text-align: center;
-            padding: 40px;
+            padding: 40px 20px;
         }
 
         .loading.visible {
             display: block;
         }
 
-        .spinner {
-            width: 48px;
-            height: 48px;
-            border: 4px solid #e5e7eb;
-            border-top-color: #667eea;
+        .loading-card {
+            background: var(--cream-light);
+            border-radius: 16px;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.08);
+            border: 1px solid rgba(196,160,85,0.15);
+            padding: 48px 40px 40px;
+            max-width: 640px;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Subtle ink splash bg */
+        .loading-card::before {
+            content: '';
+            position: absolute;
+            top: -60px; right: -60px;
+            width: 200px; height: 200px;
+            background: radial-gradient(circle, rgba(44,62,107,0.04) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        /* ---- Ink Drop Animation ---- */
+        .ink-animation {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 28px;
+            position: relative;
+        }
+
+        .ink-drop {
+            position: absolute;
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 16px;
+            background: var(--ink-blue);
+            opacity: 0;
+            animation: inkDrop 3s ease-out infinite;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .ink-drop:nth-child(1) {
+            width: 24px; height: 24px;
+            top: 38px; left: 38px;
+            animation-delay: 0s;
+        }
+        .ink-drop:nth-child(2) {
+            width: 18px; height: 18px;
+            top: 42px; left: 50px;
+            animation-delay: 0.8s;
+        }
+        .ink-drop:nth-child(3) {
+            width: 14px; height: 14px;
+            top: 35px; left: 32px;
+            animation-delay: 1.6s;
         }
 
-        /* Results */
+        @keyframes inkDrop {
+            0% {
+                transform: scale(0);
+                opacity: 0.8;
+                background: var(--ink-blue);
+            }
+            40% {
+                transform: scale(3);
+                opacity: 0.15;
+                background: var(--indigo-light);
+            }
+            100% {
+                transform: scale(5);
+                opacity: 0;
+            }
+        }
+
+        /* Central brush icon */
+        .ink-animation .brush-center {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 36px;
+            z-index: 2;
+            animation: brushPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes brushPulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.1); }
+        }
+
+        .loading-title {
+            font-family: 'Noto Serif SC', serif;
+            color: var(--ink);
+            font-weight: 700;
+            font-size: 1.25rem;
+            margin-bottom: 8px;
+            letter-spacing: 2px;
+        }
+
+        .loading-subtitle {
+            color: var(--grey-text);
+            font-size: 0.88rem;
+            margin-bottom: 32px;
+        }
+
+        /* ---- Step Progress ---- */
+        .progress-steps {
+            display: flex;
+            justify-content: center;
+            gap: 0;
+            margin-bottom: 32px;
+            position: relative;
+        }
+
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+            max-width: 120px;
+            position: relative;
+        }
+
+        .step .step-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--paper-dark);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            transition: all 0.5s ease;
+            position: relative;
+            z-index: 2;
+            border: 2px solid var(--paper-dark);
+        }
+
+        .step.active .step-icon {
+            background: var(--ink-blue);
+            border-color: var(--ink-blue);
+            box-shadow: 0 0 0 4px rgba(44,62,107,0.12), 0 2px 8px rgba(44,62,107,0.2);
+            animation: stepGlow 1.5s ease-in-out infinite;
+        }
+
+        .step.done .step-icon {
+            background: var(--gold);
+            border-color: var(--gold);
+            box-shadow: 0 2px 8px rgba(196,160,85,0.25);
+        }
+
+        @keyframes stepGlow {
+            0%, 100% { box-shadow: 0 0 0 4px rgba(44,62,107,0.12), 0 2px 8px rgba(44,62,107,0.2); }
+            50% { box-shadow: 0 0 0 8px rgba(44,62,107,0.08), 0 2px 12px rgba(44,62,107,0.25); }
+        }
+
+        .step .step-label {
+            margin-top: 8px;
+            font-size: 0.72rem;
+            color: var(--grey-light);
+            transition: color 0.3s;
+            text-align: center;
+        }
+
+        .step.active .step-label {
+            color: var(--ink-blue);
+            font-weight: 600;
+        }
+
+        .step.done .step-label {
+            color: var(--gold-dark);
+            font-weight: 500;
+        }
+
+        /* Connector lines between steps */
+        .progress-steps::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 15%;
+            right: 15%;
+            height: 2px;
+            background: var(--paper-dark);
+            z-index: 0;
+        }
+
+        /* ---- Timer ---- */
+        .loading-timer {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--gold-dark);
+            margin-bottom: 8px;
+            letter-spacing: 2px;
+        }
+
+        .loading-timer-label {
+            font-size: 0.78rem;
+            color: var(--grey-light);
+            margin-bottom: 28px;
+        }
+
+        /* ---- Knowledge Tips Carousel ---- */
+        .tips-section {
+            background: linear-gradient(135deg, #f8f1e4, #f5ecdb);
+            border: 1px solid rgba(196,160,85,0.15);
+            border-radius: 10px;
+            padding: 20px 24px;
+            margin-top: 4px;
+            position: relative;
+            min-height: 100px;
+        }
+
+        .tips-section .tip-header {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 0.78rem;
+            color: var(--gold-dark);
+            font-weight: 600;
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tips-section .tip-content {
+            font-size: 0.9rem;
+            color: #5c4a2f;
+            line-height: 1.8;
+            min-height: 48px;
+            transition: opacity 0.4s ease;
+        }
+
+        .tips-section .tip-dots {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 14px;
+        }
+
+        .tips-section .tip-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--grey-light);
+            transition: all 0.3s;
+        }
+
+        .tips-section .tip-dot.active {
+            background: var(--gold);
+            transform: scale(1.3);
+        }
+
+        /* ---- Loading preview image ---- */
+        .loading-preview {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .loading-preview img {
+            width: 64px;
+            height: 64px;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 2px solid var(--paper-dark);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .loading-preview .preview-info {
+            text-align: left;
+        }
+
+        .loading-preview .preview-info .fname {
+            font-size: 0.85rem;
+            color: var(--charcoal);
+            font-weight: 500;
+        }
+
+        .loading-preview .preview-info .fsize {
+            font-size: 0.75rem;
+            color: var(--grey-light);
+            margin-top: 2px;
+        }
+
+        /* ==================== AI Streaming Output ==================== */
+        .ai-stream-section {
+            display: none;
+            margin-top: 20px;
+            text-align: left;
+        }
+
+        .ai-stream-section.visible {
+            display: block;
+        }
+
+        .ai-stream-header {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 0.82rem;
+            color: var(--gold-dark);
+            font-weight: 600;
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ai-stream-box {
+            background: linear-gradient(135deg, #faf7f0, #f5efe3);
+            border: 1px solid rgba(196,160,85,0.2);
+            border-radius: 8px;
+            padding: 16px 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Noto Sans SC', monospace;
+            font-size: 0.85rem;
+            line-height: 1.7;
+            color: #4a4035;
+            word-break: break-all;
+            white-space: pre-wrap;
+            position: relative;
+        }
+
+        .ai-stream-box .cursor-blink {
+            display: inline-block;
+            width: 2px;
+            height: 1em;
+            background: var(--ink-blue);
+            margin-left: 2px;
+            vertical-align: text-bottom;
+            animation: cursorBlink 0.8s steps(1) infinite;
+        }
+
+        @keyframes cursorBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        /* ==================== Results Layout ==================== */
         .results-section {
             display: none;
         }
@@ -173,165 +615,469 @@
             display: block;
         }
 
-        .summary-bar {
+        .results-layout {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 30px;
+            align-items: start;
+        }
+
+        /* ==================== Left Panel: Original Image ==================== */
+        .left-panel {
+            position: sticky;
+            top: 20px;
+        }
+
+        .original-image-card {
+            background: var(--cream-light);
+            border-radius: 12px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+            border: 1px solid rgba(196,160,85,0.15);
+            padding: 24px;
+            text-align: center;
+        }
+
+        .original-image-card .panel-title {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 0.95rem;
+            color: var(--grey-text);
+            margin-bottom: 20px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .panel-title .brush-icon {
+            font-size: 1.1rem;
+        }
+
+        /* Scroll-mounted frame for image */
+        .scroll-frame {
+            position: relative;
+            display: inline-block;
+            padding: 12px;
+            background: linear-gradient(135deg, #e8dfd0, #ddd4c4);
+            border-radius: 4px;
+            box-shadow:
+                0 3px 12px rgba(0,0,0,0.1),
+                inset 0 1px 0 rgba(255,255,255,0.4);
+        }
+
+        .scroll-frame::before {
+            content: '';
+            position: absolute;
+            top: 4px; left: 4px; right: 4px; bottom: 4px;
+            border: 1px solid rgba(196,160,85,0.3);
+            border-radius: 2px;
+            pointer-events: none;
+        }
+
+        .scroll-frame img {
+            max-width: 100%;
+            max-height: 280px;
+            display: block;
+            border-radius: 2px;
+        }
+
+        .original-image-card .file-info {
+            margin-top: 14px;
+            font-size: 0.78rem;
+            color: var(--grey-light);
+        }
+
+        .left-panel .btn-wrap {
+            text-align: center;
+            margin-top: 24px;
+        }
+
+        /* ==================== Right Panel: Results ==================== */
+        .right-panel .card {
+            padding: 32px;
+            background: var(--cream-light);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Subtle paper texture overlay */
+        .right-panel .card::before {
+            content: '';
+            position: absolute;
+            top: 0; right: 0;
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(196,160,85,0.04) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .results-title {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--ink);
+            margin-bottom: 16px;
+            letter-spacing: 2px;
+        }
+
+        .meta-info {
             display: flex;
             gap: 20px;
-            margin-bottom: 30px;
+            font-size: 0.8rem;
+            color: var(--grey-light);
+            margin-bottom: 20px;
+            letter-spacing: 0.5px;
+        }
+
+        /* ==================== Score Cards ==================== */
+        .summary-bar {
+            display: flex;
+            gap: 14px;
+            margin-bottom: 28px;
             flex-wrap: wrap;
         }
 
         .stat-card {
             flex: 1;
-            min-width: 140px;
-            background: linear-gradient(135deg, #f5f7fa, #e4e9f2);
+            min-width: 100px;
+            background: linear-gradient(160deg, var(--cream-light), var(--paper));
             border-radius: 12px;
-            padding: 20px;
+            padding: 20px 12px 16px;
             text-align: center;
+            border: 1px solid rgba(196,160,85,0.12);
+            box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+            position: relative;
+        }
+
+        .stat-card .stat-icon {
+            font-size: 1.2rem;
+            margin-bottom: 4px;
+            display: block;
+            opacity: 0.7;
         }
 
         .stat-card .score {
+            font-family: 'Noto Serif SC', serif;
             font-size: 2rem;
-            font-weight: 700;
-            color: #667eea;
+            font-weight: 900;
+            color: var(--gold-dark);
+            line-height: 1.1;
         }
 
         .stat-card .label {
-            font-size: 0.85rem;
-            color: #6b7280;
-            margin-top: 4px;
+            font-size: 0.78rem;
+            color: var(--grey-text);
+            margin-top: 6px;
+            letter-spacing: 1px;
         }
 
-        .summary-comment {
-            background: #fffbeb;
-            border-left: 4px solid #f59e0b;
-            padding: 16px 20px;
-            border-radius: 0 8px 8px 0;
-            margin-bottom: 30px;
-            font-size: 1rem;
-            line-height: 1.6;
-            color: #92400e;
+        /* ==================== Summary Comment (Scroll) ==================== */
+        .summary-scroll {
+            position: relative;
+            background: linear-gradient(135deg, #f8f1e4, #f5ecdb);
+            border: 1px solid rgba(196,160,85,0.2);
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin-bottom: 28px;
+            overflow: hidden;
         }
 
-        .meta-info {
+        /* Bamboo leaf pattern overlay */
+        .summary-scroll::before {
+            content: '';
+            position: absolute;
+            top: -20px; right: -20px;
+            width: 160px;
+            height: 160px;
+            background: radial-gradient(circle, rgba(107,142,35,0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        /* Small ink splash & seal */
+        .summary-scroll::after {
+            content: '';
+            position: absolute;
+            bottom: 8px;
+            right: 12px;
+            width: 32px;
+            height: 32px;
+            background: var(--cinnabar);
+            opacity: 0.08;
+            border-radius: 2px;
+            transform: rotate(-3deg);
+        }
+
+        .summary-scroll .scroll-text {
+            font-size: 0.95rem;
+            line-height: 1.8;
+            color: #5c4a2f;
+            position: relative;
+            z-index: 1;
+        }
+
+        .summary-scroll .scroll-text strong {
+            color: var(--cinnabar);
+            font-weight: 600;
+        }
+
+        /* ==================== Character Review ==================== */
+        .section-header {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--ink);
+            margin-bottom: 18px;
             display: flex;
-            gap: 16px;
-            font-size: 0.85rem;
-            color: #9ca3af;
-            margin-bottom: 20px;
+            align-items: center;
+            gap: 8px;
+            letter-spacing: 1px;
         }
 
-        /* Character Results */
-        .char-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 20px;
+        .section-header .section-icon {
+            font-size: 1.1rem;
+        }
+
+        /* Divider line */
+        .section-header::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(196,160,85,0.3), transparent);
+            margin-left: 12px;
+        }
+
+        .char-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
         }
 
         .char-card {
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
+            border: 1px solid rgba(196,160,85,0.15);
+            border-radius: 10px;
             overflow: hidden;
-            transition: box-shadow 0.3s;
+            transition: all 0.3s;
+            background: var(--cream-light);
         }
 
         .char-card:hover {
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+            border-color: rgba(196,160,85,0.25);
         }
 
         .char-card .char-header {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 16px;
-            background: #f9fafb;
-            border-bottom: 1px solid #e5e7eb;
+            gap: 14px;
+            padding: 16px 20px;
+            background: linear-gradient(135deg, var(--paper), var(--cream-light));
+            border-bottom: 1px solid rgba(196,160,85,0.1);
         }
 
+        /* Red seal chop for index */
         .char-card .char-index {
-            width: 32px;
-            height: 32px;
-            background: #667eea;
-            color: white;
-            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            background: var(--cinnabar);
+            color: #fff;
+            border-radius: 3px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 600;
+            font-weight: 800;
             font-size: 0.85rem;
+            font-family: 'Noto Serif SC', serif;
+            flex-shrink: 0;
+            box-shadow:
+                0 2px 8px rgba(194,58,46,0.2),
+                inset 0 0 0 1.5px rgba(255,255,255,0.15);
+            transform: rotate(-2deg);
         }
 
         .char-card .char-name {
-            font-size: 1.3rem;
+            font-family: 'Noto Serif SC', serif;
+            font-size: 1.4rem;
             font-weight: 700;
+            color: var(--ink);
         }
 
         .char-card .char-score {
             margin-left: auto;
-            font-size: 1.5rem;
-            font-weight: 700;
+            font-family: 'Noto Serif SC', serif;
+            font-size: 1.8rem;
+            font-weight: 900;
+            color: var(--gold-dark);
         }
 
-        .score-high { color: #10b981; }
-        .score-mid { color: #f59e0b; }
-        .score-low { color: #ef4444; }
+        .score-high { color: #2d7d46 !important; }
+        .score-mid { color: var(--gold-dark) !important; }
+        .score-low { color: var(--cinnabar) !important; }
 
         .char-card .char-body {
-            padding: 16px;
+            padding: 18px 20px;
         }
 
+        /* ==================== Brush Stroke Progress Bars ==================== */
         .char-card .detail-row {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            padding: 6px 0;
-            font-size: 0.9rem;
+            padding: 8px 0;
+            font-size: 0.88rem;
         }
 
         .char-card .detail-row .detail-label {
-            color: #6b7280;
+            color: var(--grey-text);
+            flex-shrink: 0;
+            width: 36px;
+            font-weight: 500;
         }
 
-        .char-card .progress-bar {
-            height: 6px;
-            background: #e5e7eb;
-            border-radius: 3px;
+        .char-card .brush-bar {
             flex: 1;
-            margin: 0 12px;
+            height: 8px;
+            margin: 0 14px;
+            background: rgba(196,160,85,0.1);
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
         }
 
-        .char-card .progress-fill {
+        .char-card .brush-fill {
             height: 100%;
-            border-radius: 3px;
-            transition: width 0.6s ease;
+            border-radius: 4px;
+            position: relative;
+            transition: width 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            /* Ink blue to gold gradient - the brush stroke effect */
+            background: linear-gradient(90deg, var(--ink-blue), var(--indigo-light), var(--gold));
         }
 
+        /* Brush tip glow at the end */
+        .char-card .brush-fill::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: -1px;
+            width: 10px;
+            height: 10px;
+            background: radial-gradient(circle, var(--gold-light), transparent);
+            border-radius: 50%;
+            opacity: 0.8;
+        }
+
+        .char-card .detail-row .score-num {
+            font-weight: 600;
+            color: var(--charcoal);
+            min-width: 28px;
+            text-align: right;
+        }
+
+        /* Comment section */
         .char-card .comment-section {
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid #f3f4f6;
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid rgba(196,160,85,0.1);
+            position: relative;
+        }
+
+        /* Small cloud motif divider */
+        .char-card .comment-section::before {
+            content: '~';
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--cream-light);
+            padding: 0 12px;
+            color: var(--grey-light);
+            font-size: 0.9rem;
         }
 
         .char-card .comment-text {
             font-size: 0.9rem;
-            color: #4b5563;
-            line-height: 1.5;
+            color: #4a4035;
+            line-height: 1.7;
         }
 
         .char-card .suggestion {
-            margin-top: 8px;
-            font-size: 0.85rem;
-            color: #7c3aed;
-            background: #f5f3ff;
-            padding: 8px 12px;
+            margin-top: 10px;
+            font-size: 0.84rem;
+            color: var(--cinnabar);
+            background: rgba(194,58,46,0.04);
+            border: 1px solid rgba(194,58,46,0.1);
+            padding: 10px 14px;
             border-radius: 6px;
+            line-height: 1.6;
+            position: relative;
         }
 
-        /* Footer */
+        .char-card .suggestion::before {
+            content: '印';
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            font-family: 'Noto Serif SC', serif;
+            font-size: 0.7rem;
+            color: var(--cinnabar);
+            opacity: 0.12;
+            font-weight: 900;
+            transform: rotate(-5deg);
+        }
+
+        /* ==================== Footer ==================== */
         .footer {
             text-align: center;
-            color: rgba(255,255,255,0.7);
-            margin-top: 40px;
-            font-size: 0.85rem;
+            color: var(--grey-light);
+            margin-top: 48px;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+        }
+
+        .footer .footer-line {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .footer .footer-line::before,
+        .footer .footer-line::after {
+            content: '';
+            width: 40px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--grey-light), transparent);
+        }
+
+        /* ==================== Responsive ==================== */
+        @media (max-width: 768px) {
+            .results-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .left-panel {
+                position: static;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+                letter-spacing: 4px;
+            }
+
+            .summary-bar {
+                gap: 8px;
+            }
+
+            .stat-card {
+                min-width: 70px;
+                padding: 14px 8px 12px;
+            }
+
+            .stat-card .score {
+                font-size: 1.5rem;
+            }
+
+            .container {
+                padding: 24px 14px;
+            }
         }
     </style>
 </head>
@@ -340,83 +1086,174 @@
 <div class="container">
     <div class="header">
         <h1>AI书法批改助手</h1>
-        <p>上传书法作业照片，AI智能分析每个字的结构与笔画，给出专业点评</p>
+        <p>上传书法作业照片，AI 智能分析结构与笔画，给出专业点评</p>
     </div>
 
     <!-- Upload Card -->
     <div class="card" id="uploadCard">
         <div class="upload-area" id="uploadArea">
-            <div class="icon">&#128221;</div>
+            <div class="icon">&#128396;</div>
             <h3>点击或拖拽上传书法作业照片</h3>
             <p>支持 JPG、PNG 格式，最大 10MB</p>
             <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp">
         </div>
 
         <div class="preview-section" id="previewSection">
-            <img id="previewImg" class="preview-img" alt="预览">
+            <div class="scroll-frame">
+                <img id="previewImg" alt="预览">
+            </div>
             <br>
             <button class="btn-primary" id="analyzeBtn" onclick="submitAnalysis()">
-                开始AI批改
+                开始批改
             </button>
         </div>
     </div>
 
     <!-- Loading -->
     <div class="loading" id="loadingSection">
-        <div class="spinner"></div>
-        <h3>AI正在分析每一个字...</h3>
-        <p style="color: #6b7280; margin-top: 8px;">多个AI智能体并发工作中，请稍候</p>
+        <div class="loading-card">
+            <!-- Ink drop animation -->
+            <div class="ink-animation">
+                <div class="ink-drop"></div>
+                <div class="ink-drop"></div>
+                <div class="ink-drop"></div>
+                <div class="brush-center">&#9997;</div>
+            </div>
+
+            <div class="loading-title">墨迹识别中</div>
+            <div class="loading-subtitle">AI 正在细察每一笔一画</div>
+
+            <!-- Preview of uploaded file -->
+            <div class="loading-preview">
+                <img id="loadingPreviewImg" alt="">
+                <div class="preview-info">
+                    <div class="fname" id="loadingFileName"></div>
+                    <div class="fsize" id="loadingFileSize"></div>
+                </div>
+            </div>
+
+            <!-- Step progress -->
+            <div class="progress-steps" id="progressSteps">
+                <div class="step active" id="step0">
+                    <div class="step-icon">&#128444;</div>
+                    <div class="step-label">图像处理</div>
+                </div>
+                <div class="step" id="step1">
+                    <div class="step-icon">&#128300;</div>
+                    <div class="step-label">字符识别</div>
+                </div>
+                <div class="step" id="step2">
+                    <div class="step-icon">&#129504;</div>
+                    <div class="step-label">AI 分析</div>
+                </div>
+                <div class="step" id="step3">
+                    <div class="step-icon">&#128220;</div>
+                    <div class="step-label">生成报告</div>
+                </div>
+            </div>
+
+            <!-- Timer -->
+            <div class="loading-timer" id="loadingTimer">0.0s</div>
+            <div class="loading-timer-label">已用时</div>
+
+            <!-- Calligraphy tips carousel -->
+            <div class="tips-section">
+                <div class="tip-header">
+                    <span>&#128218;</span>
+                    <span>书法小知识</span>
+                </div>
+                <div class="tip-content" id="tipContent"></div>
+                <div class="tip-dots" id="tipDots"></div>
+            </div>
+
+            <!-- AI Streaming Output -->
+            <div class="ai-stream-section" id="aiStreamSection">
+                <div class="ai-stream-header">
+                    <span>&#129302;</span>
+                    <span>AI 正在分析</span>
+                </div>
+                <div class="ai-stream-box" id="aiStreamBox"><span class="cursor-blink"></span></div>
+            </div>
+        </div>
     </div>
 
     <!-- Results -->
     <div class="results-section" id="resultsSection">
-        <div class="card">
-            <h2 style="margin-bottom: 20px;">批改结果</h2>
+        <div class="results-layout">
+            <!-- Left: Original Image -->
+            <div class="left-panel">
+                <div class="original-image-card">
+                    <div class="panel-title">
+                        <span class="brush-icon">&#9997;</span>
+                        <span>原始作业</span>
+                    </div>
+                    <div class="scroll-frame">
+                        <img id="resultOriginalImg" alt="原始作业">
+                    </div>
+                    <div class="file-info" id="fileInfoText"></div>
+                </div>
+                <div class="btn-wrap">
+                    <button class="btn-seal" onclick="resetPage()">再批一份</button>
+                </div>
+            </div>
 
-            <div class="meta-info" id="metaInfo"></div>
+            <!-- Right: Results -->
+            <div class="right-panel">
+                <div class="card">
+                    <h2 class="results-title">批改结果</h2>
 
-            <div class="summary-bar" id="summaryBar"></div>
+                    <div class="meta-info" id="metaInfo"></div>
 
-            <div class="summary-comment" id="summaryComment"></div>
+                    <div class="summary-bar" id="summaryBar"></div>
 
-            <h3 style="margin-bottom: 16px;">逐字点评</h3>
-            <div class="char-grid" id="charGrid"></div>
-        </div>
+                    <div class="summary-scroll" id="summaryComment">
+                        <div class="scroll-text"></div>
+                    </div>
 
-        <div style="text-align: center; margin-top: 24px;">
-            <button class="btn-primary" onclick="resetPage()">再批一份</button>
+                    <div class="section-header">
+                        <span class="section-icon">&#9757;</span>
+                        <span>重点字点评</span>
+                    </div>
+                    <div class="char-list" id="charGrid"></div>
+                </div>
+            </div>
         </div>
     </div>
 
     <div class="footer">
-        <p>Powered by AI &middot; 书法批改助手 v1.0</p>
+        <div class="footer-line">
+            <span>墨韵 AI &middot; 书法批改助手 v1.0</span>
+        </div>
     </div>
 </div>
 
 <script>
-    const fileInput = document.getElementById('fileInput');
-    const uploadArea = document.getElementById('uploadArea');
-    const previewSection = document.getElementById('previewSection');
-    const previewImg = document.getElementById('previewImg');
-    const loadingSection = document.getElementById('loadingSection');
-    const resultsSection = document.getElementById('resultsSection');
-    const uploadCard = document.getElementById('uploadCard');
+    var fileInput = document.getElementById('fileInput');
+    var uploadArea = document.getElementById('uploadArea');
+    var previewSection = document.getElementById('previewSection');
+    var previewImg = document.getElementById('previewImg');
+    var loadingSection = document.getElementById('loadingSection');
+    var resultsSection = document.getElementById('resultsSection');
+    var uploadCard = document.getElementById('uploadCard');
 
-    let selectedFile = null;
+    var selectedFile = null;
+    var previewDataUrl = null;
 
-    // File selection
     fileInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            selectedFile = file;
-            const reader = new FileReader();
-            reader.onload = function(ev) {
-                previewImg.src = ev.target.result;
-                previewSection.classList.add('visible');
-            };
-            reader.readAsDataURL(file);
-        }
+        var file = e.target.files[0];
+        if (file) handleFileSelect(file);
     });
+
+    function handleFileSelect(file) {
+        selectedFile = file;
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+            previewDataUrl = ev.target.result;
+            previewImg.src = previewDataUrl;
+            previewSection.classList.add('visible');
+        };
+        reader.readAsDataURL(file);
+    }
 
     // Drag and drop
     uploadArea.addEventListener('dragover', function(e) {
@@ -431,141 +1268,401 @@
     uploadArea.addEventListener('drop', function(e) {
         e.preventDefault();
         uploadArea.classList.remove('dragover');
-        const file = e.dataTransfer.files[0];
+        var file = e.dataTransfer.files[0];
         if (file && file.type.startsWith('image/')) {
-            selectedFile = file;
             fileInput.files = e.dataTransfer.files;
-            const reader = new FileReader();
-            reader.onload = function(ev) {
-                previewImg.src = ev.target.result;
-                previewSection.classList.add('visible');
-            };
-            reader.readAsDataURL(file);
+            handleFileSelect(file);
         }
     });
 
-    // Submit
+    // ==================== Loading State Management ====================
+    var loadingTimerInterval = null;
+    var loadingStepInterval = null;
+    var tipInterval = null;
+    var loadingStartTime = 0;
+
+    var calligraphyTips = [
+        '永字八法：「永」字包含了点、横、竖、撇、捺、钩、折、提八种基本笔画，是学习书法的入门之字。',
+        '执笔要领：指实掌虚，腕平掌竖。五指自然执笔，掌心要空，像握着一个鸡蛋。',
+        '颜真卿的《祭侄文稿》被称为"天下第二行书"，全篇情感激越，笔墨纵横，是在极度悲痛中一气呵成的。',
+        '楷书四大家：欧阳询（欧体）、颜真卿（颜体）、柳公权（柳体）、赵孟頫（赵体），各有千秋。',
+        '古人练字讲究"池水尽墨"，传说王羲之练字时洗笔把池水都染黑了，可见功夫之深。',
+        '写字要"逆入平出"：起笔时先逆锋入纸，再转为中锋行笔，这样笔画才饱满有力。',
+        '米字格的作用：中心十字线帮助定位重心，对角线帮助把握笔画的倾斜角度和比例关系。',
+        '书法的呼吸：写字时配合呼吸，起笔时吸气，行笔时缓缓呼气，有助于笔画的稳定和流畅。',
+        '"结体"是指字的间架结构。一个字写得好不好，很大程度上取决于各部分的位置和比例是否协调。',
+        '书法讲究"计白当黑"：不仅要看笔画（黑），还要看留白（白），空间分布均匀才好看。'
+    ];
+
+    var currentTip = 0;
+    var currentStep = 0;
+
+    function startLoadingEffects() {
+        loadingStartTime = Date.now();
+        currentStep = 0;
+        currentTip = Math.floor(Math.random() * calligraphyTips.length);
+
+        // Set preview image in loading card
+        if (previewDataUrl) {
+            document.getElementById('loadingPreviewImg').src = previewDataUrl;
+        }
+        if (selectedFile) {
+            document.getElementById('loadingFileName').textContent = selectedFile.name;
+            document.getElementById('loadingFileSize').textContent =
+                (selectedFile.size / 1024).toFixed(1) + ' KB';
+        }
+
+        // Reset steps
+        for (var i = 0; i < 4; i++) {
+            var el = document.getElementById('step' + i);
+            el.className = 'step' + (i === 0 ? ' active' : '');
+        }
+
+        // Init tips
+        renderTip();
+
+        // Timer update every 100ms
+        loadingTimerInterval = setInterval(function() {
+            var elapsed = ((Date.now() - loadingStartTime) / 1000).toFixed(1);
+            document.getElementById('loadingTimer').textContent = elapsed + 's';
+        }, 100);
+
+        // Step progress simulation
+        var stepTimes = [3000, 5000, 12000]; // advance at these ms marks
+        loadingStepInterval = setInterval(function() {
+            var elapsed = Date.now() - loadingStartTime;
+            if (currentStep < 3 && elapsed > stepTimes[currentStep]) {
+                // Mark current as done
+                document.getElementById('step' + currentStep).className = 'step done';
+                currentStep++;
+                // Mark next as active
+                document.getElementById('step' + currentStep).className = 'step active';
+            }
+        }, 500);
+
+        // Tip rotation every 6 seconds
+        tipInterval = setInterval(function() {
+            currentTip = (currentTip + 1) % calligraphyTips.length;
+            renderTip();
+        }, 6000);
+    }
+
+    function renderTip() {
+        var content = document.getElementById('tipContent');
+        content.style.opacity = '0';
+        setTimeout(function() {
+            content.textContent = calligraphyTips[currentTip];
+            content.style.opacity = '1';
+        }, 300);
+
+        // Update dots
+        var dotsEl = document.getElementById('tipDots');
+        var dotsHtml = '';
+        for (var i = 0; i < calligraphyTips.length; i++) {
+            dotsHtml += '<div class="tip-dot' + (i === currentTip ? ' active' : '') + '"></div>';
+        }
+        dotsEl.innerHTML = dotsHtml;
+    }
+
+    function stopLoadingEffects() {
+        if (loadingTimerInterval) { clearInterval(loadingTimerInterval); loadingTimerInterval = null; }
+        if (loadingStepInterval) { clearInterval(loadingStepInterval); loadingStepInterval = null; }
+        if (tipInterval) { clearInterval(tipInterval); tipInterval = null; }
+
+        // Mark all steps done
+        for (var i = 0; i < 4; i++) {
+            document.getElementById('step' + i).className = 'step done';
+        }
+    }
+
+    // ==================== SSE Streaming Submit ====================
+    var streamedText = ''; // 累积 AI 输出的全文
+
     async function submitAnalysis() {
         if (!selectedFile) return;
 
-        const btn = document.getElementById('analyzeBtn');
-        btn.disabled = true;
+        document.getElementById('analyzeBtn').disabled = true;
         uploadCard.style.display = 'none';
         loadingSection.classList.add('visible');
+        startLoadingEffects();
+        streamedText = '';
 
-        const formData = new FormData();
+        var formData = new FormData();
         formData.append('file', selectedFile);
 
         try {
-            const response = await fetch('/api/homework/analyze', {
+            var response = await fetch('/api/homework/analyze-stream', {
                 method: 'POST',
                 body: formData
             });
 
-            const data = await response.json();
+            if (!response.ok) {
+                throw new Error('服务器返回错误: ' + response.status);
+            }
+
+            // 使用 ReadableStream 逐块读取 SSE
+            var reader = response.body.getReader();
+            var decoder = new TextDecoder('utf-8');
+            var buffer = ''; // 未完成的行缓冲
+            var finalResult = null;
+
+            // 关键：事件名和数据必须跨 chunk 保持状态，不能在循环内重置
+            var currentEventName = null;
+            var currentEventData = '';
+
+            function processLine(line) {
+                if (line.startsWith('event:')) {
+                    currentEventName = line.substring(6).trim();
+                } else if (line.startsWith('data:')) {
+                    currentEventData += line.substring(5);
+                } else if (line === '' && currentEventName) {
+                    // 空行 = 事件结束，处理此事件
+                    handleSseEvent(currentEventName, currentEventData);
+                    if (currentEventName === 'result') {
+                        try { finalResult = JSON.parse(currentEventData); } catch(e) {
+                            console.warn('result JSON 解析失败:', e, currentEventData.substring(0, 200));
+                        }
+                    }
+                    currentEventName = null;
+                    currentEventData = '';
+                }
+            }
+
+            while (true) {
+                var readResult = await reader.read();
+                if (readResult.done) break;
+
+                buffer += decoder.decode(readResult.value, { stream: true });
+
+                // SSE 协议：事件之间用空行分隔
+                var lines = buffer.split('\n');
+                // 保留最后一个（可能不完整的）行
+                buffer = lines.pop() || '';
+
+                for (var i = 0; i < lines.length; i++) {
+                    processLine(lines[i]);
+                }
+            }
+
+            // 流结束后，处理 buffer 中可能残留的最后几行
+            if (buffer.length > 0) {
+                var remaining = buffer.split('\n');
+                for (var i = 0; i < remaining.length; i++) {
+                    processLine(remaining[i]);
+                }
+                // 如果最后一个事件没有以空行结束，手动触发
+                if (currentEventName && currentEventData) {
+                    processLine('');
+                }
+            }
+
+            // 流结束
+            stopLoadingEffects();
+            await new Promise(function(r) { setTimeout(r, 400); });
             loadingSection.classList.remove('visible');
 
-            if (data.success) {
-                renderResults(data.data);
+            if (finalResult) {
+                renderResults(finalResult);
                 resultsSection.classList.add('visible');
             } else {
-                alert('批改失败: ' + (data.message || '未知错误'));
+                alert('批改完成但未收到结构化结果，请重试');
                 resetPage();
             }
+
         } catch (err) {
+            stopLoadingEffects();
             loadingSection.classList.remove('visible');
             alert('请求失败: ' + err.message);
             resetPage();
         }
     }
 
-    // Render results
-    function renderResults(result) {
-        // Meta info
-        document.getElementById('metaInfo').innerHTML =
-            `<span>任务ID: ${result.taskId}</span>` +
-            `<span>共 ${result.totalCharacters} 个字</span>` +
-            `<span>耗时 ${(result.processingTimeMs / 1000).toFixed(1)}s</span>`;
+    var aiOutputStarted = false; // AI 是否已开始输出
 
-        // Summary bar
-        const summaryBar = document.getElementById('summaryBar');
-        summaryBar.innerHTML = `
-            <div class="stat-card">
-                <div class="score">${result.avgOverallScore.toFixed(1)}</div>
-                <div class="label">综合评分</div>
-            </div>
-            <div class="stat-card">
-                <div class="score">${result.avgStructureScore.toFixed(1)}</div>
-                <div class="label">结构评分</div>
-            </div>
-            <div class="stat-card">
-                <div class="score">${result.avgStrokeScore.toFixed(1)}</div>
-                <div class="label">笔画评分</div>
-            </div>
-            <div class="stat-card">
-                <div class="score">${result.totalCharacters}</div>
-                <div class="label">批改字数</div>
-            </div>
-        `;
+    function handleSseEvent(eventName, data) {
+        if (eventName === 'start') {
+            // 任务开始，显示流式输出区域
+            aiOutputStarted = false;
+            document.getElementById('aiStreamSection').classList.add('visible');
+            showThinkingText('正在连接 AI 模型...');
+        } else if (eventName === 'thinking') {
+            // AI 思考中的心跳提示（仅在真正输出开始前显示）
+            if (!aiOutputStarted) {
+                showThinkingText(data);
+
+                // 推进进度到 "字符识别" 阶段
+                if (currentStep < 1) {
+                    document.getElementById('step0').className = 'step done';
+                    currentStep = 1;
+                    document.getElementById('step1').className = 'step active';
+                }
+            }
+        } else if (eventName === 'token') {
+            // 第一个 token 到达：切换显示模式
+            if (!aiOutputStarted) {
+                aiOutputStarted = true;
+                // 推进进度到 "AI 分析" 阶段
+                for (var s = 0; s <= 1; s++) {
+                    document.getElementById('step' + s).className = 'step done';
+                }
+                currentStep = 2;
+                document.getElementById('step2').className = 'step active';
+                // 更新标题
+                document.querySelector('.ai-stream-header span:last-child').textContent = 'AI 输出中';
+            }
+            // 增量 token — 实时显示
+            streamedText += data;
+            showStreamingText(streamedText);
+        } else if (eventName === 'result') {
+            // 完成：隐藏光标
+            showStreamingText(streamedText, true);
+            // 推进到最终阶段
+            for (var s = 0; s <= 2; s++) {
+                document.getElementById('step' + s).className = 'step done';
+            }
+            document.getElementById('step3').className = 'step active';
+        } else if (eventName === 'error') {
+            showStreamingText(streamedText + '\n\n[错误] ' + data, true);
+        }
+    }
+
+    function showThinkingText(message) {
+        var box = document.getElementById('aiStreamBox');
+        box.innerHTML = '<span style="color:var(--indigo-light);font-style:italic;">' +
+            message.replace(/&/g,'&amp;').replace(/</g,'&lt;') +
+            '</span><span class="cursor-blink"></span>';
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function showStreamingText(text, finished) {
+        var box = document.getElementById('aiStreamBox');
+        // 显示文本 + 闪烁光标（完成时移除光标）
+        var escaped = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        if (finished) {
+            box.innerHTML = escaped;
+        } else {
+            box.innerHTML = escaped + '<span class="cursor-blink"></span>';
+        }
+
+        // 自动滚动到底部
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function renderResults(result) {
+        // Left panel: original image
+        document.getElementById('resultOriginalImg').src = previewDataUrl;
+
+        var fileInfo = document.getElementById('fileInfoText');
+        if (selectedFile) {
+            var sizeKB = (selectedFile.size / 1024).toFixed(1);
+            fileInfo.textContent = selectedFile.name + ' (' + sizeKB + ' KB)';
+        }
+
+        // Meta info
+        var problemCount = result.analyses ? result.analyses.length : 0;
+        document.getElementById('metaInfo').innerHTML =
+            '<span>任务 ' + result.taskId + '</span>' +
+            '<span>识别 ' + result.totalCharacters + ' 字</span>' +
+            '<span>重点点评 ' + problemCount + ' 字</span>' +
+            '<span>耗时 ' + (result.processingTimeMs / 1000).toFixed(1) + 's</span>';
+
+        // Summary bar with icons
+        var icons = ['&#9878;', '&#9635;', '&#9998;', '&#9733;'];
+        var labels = ['综合评分', '结构评分', '笔画评分', '识别字数'];
+        var values = [
+            (typeof result.avgOverallScore === 'number' ? result.avgOverallScore.toFixed(1) : result.avgOverallScore),
+            (typeof result.avgStructureScore === 'number' ? result.avgStructureScore.toFixed(1) : result.avgStructureScore),
+            (typeof result.avgStrokeScore === 'number' ? result.avgStrokeScore.toFixed(1) : result.avgStrokeScore),
+            result.totalCharacters
+        ];
+
+        var barHtml = '';
+        for (var i = 0; i < 4; i++) {
+            barHtml +=
+                '<div class="stat-card">' +
+                    '<span class="stat-icon">' + icons[i] + '</span>' +
+                    '<div class="score">' + values[i] + '</div>' +
+                    '<div class="label">' + labels[i] + '</div>' +
+                '</div>';
+        }
+        document.getElementById('summaryBar').innerHTML = barHtml;
 
         // Summary comment
-        document.getElementById('summaryComment').textContent = result.summaryComment;
+        document.querySelector('#summaryComment .scroll-text').textContent = result.summaryComment;
 
-        // Character grid
-        const charGrid = document.getElementById('charGrid');
+        // Problem characters list
+        var charGrid = document.getElementById('charGrid');
         charGrid.innerHTML = '';
 
-        result.analyses.forEach(function(analysis) {
-            const scoreClass = analysis.overallScore >= 80 ? 'score-high' :
-                             analysis.overallScore >= 60 ? 'score-mid' : 'score-low';
+        if (!result.analyses || result.analyses.length === 0) {
+            charGrid.innerHTML = '<div style="text-align:center;color:var(--grey-text);padding:20px;">所有字都写得不错，暂无需要重点改进的字。</div>';
+            return;
+        }
 
-            const progressColor = analysis.overallScore >= 80 ? '#10b981' :
-                                analysis.overallScore >= 60 ? '#f59e0b' : '#ef4444';
+        result.analyses.forEach(function(a, idx) {
+            var scoreClass = a.overallScore >= 80 ? 'score-high' :
+                             a.overallScore >= 60 ? 'score-mid' : 'score-low';
 
-            const charDisplay = analysis.recognizedChar || '#' + (analysis.charIndex + 1);
+            // 整页模式下 recognizedChar 就是具体的字
+            var charDisplay = a.recognizedChar || '第' + (idx + 1) + '字';
 
-            const card = document.createElement('div');
+            var card = document.createElement('div');
             card.className = 'char-card';
-            card.innerHTML = `
-                <div class="char-header">
-                    <div class="char-index">${analysis.charIndex + 1}</div>
-                    <div class="char-name">${charDisplay}</div>
-                    <div class="char-score ${scoreClass}">${analysis.overallScore}</div>
-                </div>
-                <div class="char-body">
-                    <div class="detail-row">
-                        <span class="detail-label">结构</span>
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width:${analysis.structureScore}%;background:${progressColor}"></div>
-                        </div>
-                        <span>${analysis.structureScore}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">笔画</span>
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width:${analysis.strokeScore}%;background:${progressColor}"></div>
-                        </div>
-                        <span>${analysis.strokeScore}</span>
-                    </div>
-                    <div class="comment-section">
-                        <div class="comment-text">${analysis.overallComment}</div>
-                        ${analysis.suggestion ? `<div class="suggestion">${analysis.suggestion}</div>` : ''}
-                    </div>
-                </div>
-            `;
+            card.innerHTML =
+                '<div class="char-header">' +
+                    '<div class="char-index">' + charDisplay + '</div>' +
+                    '<div class="char-name">' +
+                        '<span style="font-size:0.78rem;color:var(--grey-text);font-weight:400;">需要改进</span>' +
+                    '</div>' +
+                    '<div class="char-score ' + scoreClass + '">' + a.overallScore + '</div>' +
+                '</div>' +
+                '<div class="char-body">' +
+                    '<div class="detail-row">' +
+                        '<span class="detail-label">结构</span>' +
+                        '<div class="brush-bar">' +
+                            '<div class="brush-fill" style="width:' + a.structureScore + '%"></div>' +
+                        '</div>' +
+                        '<span class="score-num">' + a.structureScore + '</span>' +
+                    '</div>' +
+                    '<div class="detail-row">' +
+                        '<span class="detail-label">笔画</span>' +
+                        '<div class="brush-bar">' +
+                            '<div class="brush-fill" style="width:' + a.strokeScore + '%"></div>' +
+                        '</div>' +
+                        '<span class="score-num">' + a.strokeScore + '</span>' +
+                    '</div>' +
+                    '<div class="comment-section">' +
+                        '<div class="comment-text">' + (a.structureComment || '') +
+                            (a.strokeComment ? ' ' + a.strokeComment : '') +
+                            (a.overallComment ? ' ' + a.overallComment : '') +
+                        '</div>' +
+                        (a.suggestion ? '<div class="suggestion">' + a.suggestion + '</div>' : '') +
+                    '</div>' +
+                '</div>';
             charGrid.appendChild(card);
         });
     }
 
-    // Reset
     function resetPage() {
+        stopLoadingEffects();
         selectedFile = null;
+        previewDataUrl = null;
+        streamedText = '';
+        aiOutputStarted = false;
         fileInput.value = '';
         previewSection.classList.remove('visible');
         loadingSection.classList.remove('visible');
         resultsSection.classList.remove('visible');
         uploadCard.style.display = 'block';
         document.getElementById('analyzeBtn').disabled = false;
+        // 重置流式输出区域
+        var streamSection = document.getElementById('aiStreamSection');
+        streamSection.classList.remove('visible');
+        document.getElementById('aiStreamBox').innerHTML = '<span class="cursor-blink"></span>';
     }
 </script>
 </body>
