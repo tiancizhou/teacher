@@ -1,0 +1,83 @@
+server:
+  port: 8080
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+spring:
+  application:
+    name: teacher-calligraphy
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    cache: false
+  # 内存模式下禁用 Redis 自动配置
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+  # ============================
+  # SQLite 数据库（单文件，零配置，无 Hibernate）
+  # ============================
+  datasource:
+    url: jdbc:sqlite:./data/teacher.db
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      maximum-pool-size: 1
+  # 启动时自动执行 schema.sql 建表
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+# ============================
+# 书法批改系统配置
+# ============================
+teacher:
+  # OpenCV 图像处理参数
+  opencv:
+    binary-threshold: 127
+    min-contour-area: 500
+    adaptive-block-size: 15
+    adaptive-c: 10
+    gaussian-kernel-size: 5
+    perspective-correction-enabled: true
+    dilate-iterations: 2
+    min-char-gap: 10
+
+  # 算力调度中心配置
+  dispatcher:
+    # 存储类型: memory（默认，零依赖轻量部署）/ redis（分布式多实例）
+    storage-type: memory
+    max-concurrent: 15
+    retry-count: 3
+    key-pool-name: "ai:key:pool"
+    failed-key-pool-name: "ai:key:failed"
+    key-cooldown-seconds: 60
+    rate-limit-window-seconds: 60
+    rate-limit-max-requests: 50
+    key-borrow-timeout-seconds: 10
+
+  # AI 模型配置
+  ai:
+    provider: openai  # openai 或 anthropic
+    multi-agent-enabled: false  # 是否启用多Agent模式
+    request-timeout-seconds: 30
+    max-image-size: 512
+    openai:
+      base-url: https://api.openai.com/v1
+      model: gpt-4o
+      temperature: 0.3
+      max-tokens: 1024
+    anthropic:
+      base-url: https://api.anthropic.com/v1
+      model: claude-3-5-sonnet-20241022
+      temperature: 0.3
+      max-tokens: 1024
+
+logging:
+  level:
+    com.teacher: DEBUG
+    root: INFO

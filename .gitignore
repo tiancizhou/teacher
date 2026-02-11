@@ -1,0 +1,39 @@
+# Compiled class files
+*.class
+
+# Maven
+target/
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# SQLite database files
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Environment
+.env
+*.env.local

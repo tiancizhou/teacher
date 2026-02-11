@@ -1,0 +1,25 @@
+# Redis 分布式模式配置
+# 使用方法: --spring.profiles.active=redis
+# 如需切换 MySQL/PostgreSQL，覆盖 datasource 即可
+
+spring:
+  # 启用 Redis 自动配置（覆盖默认的 exclude）
+  autoconfigure:
+    exclude: []
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 5000ms
+  # 生产环境可切换为 MySQL / PostgreSQL
+  # datasource:
+  #   url: jdbc:mysql://localhost:3306/teacher?useSSL=false&serverTimezone=Asia/Shanghai
+  #   driver-class-name: com.mysql.cj.jdbc.Driver
+  #   username: root
+  #   password: your_password
+  # jpa:
+  #   database-platform: org.hibernate.dialect.MySQLDialect
+
+teacher:
+  dispatcher:
+    storage-type: redis
