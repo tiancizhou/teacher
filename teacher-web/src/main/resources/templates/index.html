@@ -1437,6 +1437,13 @@ function resetPage() {
     document.getElementById('wholePageMode').style.display = currentMode === 'whole' ? 'block' : 'none';
     document.getElementById('singleCharMode').style.display = currentMode === 'single' ? 'block' : 'none';
 }
+
+// 从其他页面返回时（含浏览器后退、bfcache 恢复），恢复为初始上传界面，避免空白
+window.addEventListener('pageshow', function(ev) {
+    if (ev.persisted) {
+        resetPage();
+    }
+});
 </script>
 </body>
 </html>

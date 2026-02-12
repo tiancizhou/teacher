@@ -91,6 +91,9 @@ public class HomeworkDataService {
      * 保存单字精批结果到数据库。
      */
     public SingleAnalysisEntity saveSingleResult(SingleCharResult result, Long userId) {
+        String createdAt = result.getCreatedAt() != null && !result.getCreatedAt().isEmpty()
+                ? result.getCreatedAt()
+                : LocalDateTime.now().format(SQLITE_FMT);
         SingleAnalysisEntity entity = SingleAnalysisEntity.builder()
                 .taskId(result.getTaskId())
                 .userId(userId)
@@ -107,6 +110,7 @@ public class HomeworkDataService {
                 .overallComment(result.getOverallComment())
                 .suggestion(result.getSuggestion())
                 .processingTimeMs(result.getProcessingTimeMs())
+                .createdAt(createdAt)
                 .build();
         entity = singleAnalysisRepo.save(entity);
 
