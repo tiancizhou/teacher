@@ -19,10 +19,10 @@
             <groupId>com.teacher</groupId>
             <artifactId>teacher-common</artifactId>
         </dependency>
-        <dependency>
+        <!-- <dependency>
             <groupId>com.teacher</groupId>
             <artifactId>teacher-image</artifactId>
-        </dependency>
+        </dependency> -->
         <dependency>
             <groupId>com.teacher</groupId>
             <artifactId>teacher-ai</artifactId>
