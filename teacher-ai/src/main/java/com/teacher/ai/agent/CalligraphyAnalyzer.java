@@ -4,24 +4,34 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.teacher.ai.config.AiProperties;
 import com.teacher.ai.prompt.PromptTemplates;
-import com.teacher.ai.provider.AiProvider;
-import com.teacher.ai.provider.AiProviderFactory;
 import com.teacher.common.dto.CharAnalysis;
-import com.teacher.common.exception.AiServiceException;
+import com.teacher.common.util.ImageUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.content.Media;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.stereotype.Service;
+import org.springframework.util.MimeTypeUtils;
+
+import java.util.List;
 
 /**
  * 书法分析器：根据配置选择单 Agent 或多 Agent 模式来分析单个汉字。
+ * <p>
+ * 底层通过 Spring AI ChatModel 调用大模型。
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CalligraphyAnalyzer {
 
-    private final AiProviderFactory providerFactory;
+    private final ChatModel chatModel;
     private final AiProperties properties;
+    private final PromptTemplates promptTemplates;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -29,52 +39,58 @@ public class CalligraphyAnalyzer {
      *
      * @param imageBase64 单字图片的 Base64 编码
      * @param charIndex   字符在整页中的序号
-     * @param apiKey      API Key
      * @return 单字分析结果
      */
-    public CharAnalysis analyze(String imageBase64, int charIndex, String apiKey) {
-        AiProvider provider = providerFactory.getProvider();
-
+    public CharAnalysis analyze(String imageBase64, int charIndex) {
         if (properties.isMultiAgentEnabled()) {
-            return multiAgentAnalysis(provider, imageBase64, charIndex, apiKey);
+            return multiAgentAnalysis(imageBase64, charIndex);
         } else {
-            return unifiedAnalysis(provider, imageBase64, charIndex, apiKey);
+            return unifiedAnalysis(imageBase64, charIndex);
         }
     }
 
     /**
      * 单一 Prompt 综合分析（默认模式，节省 API 调用次数）。
      */
-    private CharAnalysis unifiedAnalysis(AiProvider provider, String imageBase64,
-                                         int charIndex, String apiKey) {
+    private CharAnalysis unifiedAnalysis(String imageBase64, int charIndex) {
         log.debug("使用统一分析模式，字符序号: {}", charIndex);
 
-        String response = provider.analyzeImage(imageBase64, PromptTemplates.UNIFIED_ANALYSIS, apiKey);
+        String response = callVisionModel(imageBase64, promptTemplates.getUnifiedAnalysis());
         return parseUnifiedResponse(response, charIndex);
     }
 
     /**
      * 多 Agent 分析模式：A(结构) + B(笔画) + C(综合评语)。
      */
-    private CharAnalysis multiAgentAnalysis(AiProvider provider, String imageBase64,
-                                            int charIndex, String apiKey) {
+    private CharAnalysis multiAgentAnalysis(String imageBase64, int charIndex) {
         log.debug("使用多Agent分析模式，字符序号: {}", charIndex);
 
         // Agent A: 结构分析
-        String structureResponse = provider.analyzeImage(
-                imageBase64, PromptTemplates.STRUCTURE_ANALYSIS, apiKey);
+        String structureResponse = callVisionModel(imageBase64, promptTemplates.getStructureAnalysis());
 
         // Agent B: 笔画分析
-        String strokeResponse = provider.analyzeImage(
-                imageBase64, PromptTemplates.STROKE_ANALYSIS, apiKey);
+        String strokeResponse = callVisionModel(imageBase64, promptTemplates.getStrokeAnalysis());
 
         // Agent C: 综合评语
-        String commentPrompt = String.format(
-                PromptTemplates.COMMENT_GENERATOR, structureResponse, strokeResponse);
-        String commentResponse = provider.analyzeImage(
-                imageBase64, commentPrompt, apiKey);
+        String commentPrompt = promptTemplates.getCommentGenerator(structureResponse, strokeResponse);
+        String commentResponse = callVisionModel(imageBase64, commentPrompt);
 
         return parseMultiAgentResponse(structureResponse, strokeResponse, commentResponse, charIndex);
+    }
+
+    /**
+     * 调用大模型 Vision API。
+     */
+    private String callVisionModel(String imageBase64, String promptText) {
+        byte[] imageBytes = ImageUtils.fromBase64(imageBase64);
+        Media imageMedia = new Media(MimeTypeUtils.IMAGE_PNG, new ByteArrayResource(imageBytes));
+        UserMessage userMessage = UserMessage.builder()
+                .text(promptText)
+                .media(imageMedia)
+                .build();
+
+        ChatResponse response = chatModel.call(new Prompt(List.of(userMessage)));
+        return response.getResult().getOutput().getText();
     }
 
     /**
@@ -82,7 +98,6 @@ public class CalligraphyAnalyzer {
      */
     private CharAnalysis parseUnifiedResponse(String response, int charIndex) {
         try {
-            // 清理可能的 markdown 代码块标记
             String cleaned = cleanJsonResponse(response);
             JsonNode json = objectMapper.readTree(cleaned);
 
@@ -100,7 +115,7 @@ public class CalligraphyAnalyzer {
 
         } catch (Exception e) {
             log.warn("解析AI响应失败，返回默认结果。原始响应: {}", response, e);
-            return buildFallbackResult(charIndex, response);
+            return buildFallbackResult(charIndex);
         }
     }
 
@@ -127,17 +142,13 @@ public class CalligraphyAnalyzer {
 
         } catch (Exception e) {
             log.warn("解析多Agent响应失败，返回默认结果", e);
-            return buildFallbackResult(charIndex, structureResp);
+            return buildFallbackResult(charIndex);
         }
     }
 
-    /**
-     * 清理 JSON 响应中可能的 markdown 标记。
-     */
     private String cleanJsonResponse(String response) {
         if (response == null) return "{}";
         String cleaned = response.trim();
-        // 去除 ```json ... ``` 包裹
         if (cleaned.startsWith("```")) {
             int firstNewline = cleaned.indexOf('\n');
             if (firstNewline > 0) {
@@ -158,10 +169,7 @@ public class CalligraphyAnalyzer {
         return node.asText();
     }
 
-    /**
-     * AI 解析失败时的兜底结果。
-     */
-    private CharAnalysis buildFallbackResult(int charIndex, String rawResponse) {
+    private CharAnalysis buildFallbackResult(int charIndex) {
         return CharAnalysis.builder()
                 .charIndex(charIndex)
                 .structureScore(60)

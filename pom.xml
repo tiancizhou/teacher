@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
+        <version>3.4.2</version>
         <relativePath/>
     </parent>
 
@@ -37,9 +37,9 @@
         <sqlite.version>3.45.3.0</sqlite.version>
         <javacpp.version>1.5.10</javacpp.version>
         <opencv.version>4.9.0-1.5.10</opencv.version>
-        <okhttp.version>4.12.0</okhttp.version>
         <jackson.version>2.17.0</jackson.version>
         <lombok.version>1.18.32</lombok.version>
+        <spring-ai.version>1.1.0</spring-ai.version>
     </properties>
 
     <dependencyManagement>
@@ -83,11 +83,13 @@
                 <version>${javacpp.version}</version>
             </dependency>
 
-            <!-- OkHttp for AI API calls -->
+            <!-- Spring AI BOM -->
             <dependency>
-                <groupId>com.squareup.okhttp3</groupId>
-                <artifactId>okhttp</artifactId>
-                <version>${okhttp.version}</version>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
 
             <!-- SQLite JDBC Driver -->

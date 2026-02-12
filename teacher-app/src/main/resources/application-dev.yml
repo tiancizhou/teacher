@@ -6,15 +6,17 @@ spring:
     redis:
       host: localhost
       port: 6379
+  ai:
+    openai:
+      # 开发环境可使用本地反代地址
+      base-url: http://localhost:8317
+      chat:
+        options:
+          model: gemini-2.5-flash-lite  # 无 thinking 延迟，TTFT 低
 
 teacher:
   ai:
-    provider: openai
     multi-agent-enabled: false
-    openai:
-      # 开发环境可使用反代地址
-      base-url: https://api.openai.com/v1
-      model: gpt-4o
 
 logging:
   level:

@@ -24,22 +24,16 @@
             <artifactId>teacher-dispatcher</artifactId>
         </dependency>
 
-        <!-- OkHttp for API calls -->
+        <!-- Spring AI OpenAI (支持所有 OpenAI 兼容 API，包括 CLIProxyAPI 网关) -->
         <dependency>
-            <groupId>com.squareup.okhttp3</groupId>
-            <artifactId>okhttp</artifactId>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
         </dependency>
 
         <!-- Jackson for JSON parsing -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-        </dependency>
-
-        <!-- Spring Context -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-autoconfigure</artifactId>
         </dependency>
     </dependencies>
 </project>
