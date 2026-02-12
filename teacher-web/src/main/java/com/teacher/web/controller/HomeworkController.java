@@ -4,9 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.teacher.ai.agent.HomeworkGradingService;
 import com.teacher.common.dto.*;
 import com.teacher.common.util.IdGenerator;
-import com.teacher.web.entity.CopybookTemplateEntity;
 import com.teacher.web.entity.HomeworkEntity;
-import com.teacher.web.repository.CopybookTemplateRepository;
 import com.teacher.web.service.HomeworkDataService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,22 +13,16 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 /**
  * 书法作业批改 REST API 控制器。
  * <p>
  * 支持三种模式：
- * 1. 整页批改（自由模式）：不选模板，AI 分析全页，文字点评 + 行列位置
- * 2. 整页批改（模板模式）：选择字帖模板，确定性网格裁切，精确截图
- * 3. 单字精批：上传单个字的图片，多维度深度分析
+ * 1. 整页批改：AI 分析全页，返回文字点评 + 行列位置
+ * 2. 单字精批：上传单个字的图片，多维度深度分析
  */
 @Slf4j
 @RestController
@@ -41,29 +33,6 @@ public class HomeworkController {
     private final HomeworkGradingService gradingService;
     private final HomeworkDataService dataService;
     private final ObjectMapper objectMapper;
-    private final CopybookTemplateRepository templateRepository;
-
-    // ======================== 字帖模板 API ========================
-
-    /**
-     * 获取所有字帖模板列表。
-     */
-    @GetMapping("/templates")
-    public ApiResponse<List<CopybookTemplate>> listTemplates() {
-        List<CopybookTemplateEntity> entities = templateRepository.findAllTemplates();
-        List<CopybookTemplate> templates = entities.stream()
-                .map(e -> CopybookTemplate.builder()
-                        .id(e.getId())
-                        .name(e.getName())
-                        .gridType(e.getGridType())
-                        .gridRows(e.getGridRows())
-                        .gridCols(e.getGridCols())
-                        .headerRatio(e.getHeaderRatio())
-                        .description(e.getDescription())
-                        .build())
-                .collect(Collectors.toList());
-        return ApiResponse.ok(templates);
-    }
 
     // ======================== 整页批改（阻塞式） ========================
 
@@ -71,19 +40,17 @@ public class HomeworkController {
      * 上传书法作业图片进行 AI 批改（整页模式）。
      *
      * @param file       书法作业图片文件
-     * @param templateId 字帖模板ID（可选，传了启用确定性网格裁切）
      * @param userId     用户ID（可选，匿名不传）
      * @param copyBookId 临摹字帖ID（可选，传了可启用缓存命中）
      */
     @PostMapping("/analyze")
     public ApiResponse<BatchResult> analyzeHomework(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "templateId", required = false) Long templateId,
             @RequestParam(value = "userId", required = false) Long userId,
             @RequestParam(value = "copyBookId", required = false) String copyBookId) {
 
-        log.info("收到批改请求, 文件名: {}, 大小: {} bytes, templateId: {}, userId: {}",
-                file.getOriginalFilename(), file.getSize(), templateId, userId);
+        log.info("收到批改请求, 文件名: {}, 大小: {} bytes, userId: {}",
+                file.getOriginalFilename(), file.getSize(), userId);
 
         // 防刷检查：同一用户 5 分钟内最多 20 次
         if (userId != null && dataService.countRecentCalls(userId, 5) >= 20) {
@@ -94,17 +61,9 @@ public class HomeworkController {
         try {
             byte[] imageBytes = file.getBytes();
 
-            // 查询模板
-            CopybookTemplate template = resolveTemplate(templateId);
-
             // 整页模式：直接把完整图片发给 AI，一次调用搞定
             BatchResult result = gradingService.gradeWholePageImage(imageBytes);
             result.setImageId(IdGenerator.withPrefix("img"));
-
-            // 模板模式：确定性网格裁切
-            if (template != null) {
-                attachCharacterImagesByTemplate(result, imageBytes, template);
-            }
 
             // 持久化到数据库
             dataService.saveResult(result, file.getOriginalFilename(), userId, copyBookId);
@@ -141,12 +100,11 @@ public class HomeworkController {
     @PostMapping(value = "/analyze-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter analyzeStream(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "templateId", required = false) Long templateId,
             @RequestParam(value = "userId", required = false) Long userId,
             @RequestParam(value = "copyBookId", required = false) String copyBookId) {
 
-        log.info("收到流式批改请求, 文件名: {}, 大小: {} bytes, templateId: {}, userId: {}",
-                file.getOriginalFilename(), file.getSize(), templateId, userId);
+        log.info("收到流式批改请求, 文件名: {}, 大小: {} bytes, userId: {}",
+                file.getOriginalFilename(), file.getSize(), userId);
 
         // 3 分钟超时，覆盖最慢场景
         SseEmitter emitter = new SseEmitter(180_000L);
@@ -164,9 +122,6 @@ public class HomeworkController {
         Thread.startVirtualThread(() -> {
             try {
                 byte[] imageBytes = file.getBytes();
-
-                // 查询模板（在虚拟线程内执行）
-                CopybookTemplate template = resolveTemplate(templateId);
 
                 // 发送 start 事件
                 sendSse(emitter, "start", "{}");
@@ -202,7 +157,6 @@ public class HomeworkController {
                 });
 
                 // ---- 流式批改 ----
-                final CopybookTemplate tpl = template;
                 final String origFileName = file.getOriginalFilename();
                 final Long uid = userId;
                 final String cbId = copyBookId;
@@ -217,11 +171,6 @@ public class HomeworkController {
                         (result) -> {
                             firstTokenReceived.set(true);
                             try {
-                                // 模板模式：确定性网格裁切
-                                if (tpl != null) {
-                                    attachCharacterImagesByTemplate(result, imageBytes, tpl);
-                                }
-
                                 // 持久化到数据库
                                 try {
                                     result.setImageId(IdGenerator.withPrefix("img"));
@@ -427,106 +376,6 @@ public class HomeworkController {
             @PathVariable String charName) {
         List<CharAnalysis> curve = dataService.getGrowthCurve(userId, charName);
         return ApiResponse.ok(curve);
-    }
-
-    // ======================== 模板辅助方法 ========================
-
-    /**
-     * 根据 templateId 查询模板，null 表示自由模式。
-     */
-    private CopybookTemplate resolveTemplate(Long templateId) {
-        if (templateId == null) return null;
-        return templateRepository.findById(templateId)
-                .map(e -> CopybookTemplate.builder()
-                        .id(e.getId())
-                        .name(e.getName())
-                        .gridType(e.getGridType())
-                        .gridRows(e.getGridRows())
-                        .gridCols(e.getGridCols())
-                        .headerRatio(e.getHeaderRatio())
-                        .description(e.getDescription())
-                        .build())
-                .orElse(null);
-    }
-
-    // ======================== 确定性网格裁切 ========================
-
-    /**
-     * 基于模板的确定性网格裁切：已知行列数，直接按网格均分，O(1) 匹配。
-     * <p>
-     * 优势：不依赖 OpenCV 字符切分，无误差，100% 确定性。
-     */
-    private void attachCharacterImagesByTemplate(BatchResult result, byte[] imageBytes,
-                                                 CopybookTemplate template) {
-        if (result == null || result.getAnalyses() == null || result.getAnalyses().isEmpty()) return;
-
-        try {
-            BufferedImage img = ImageIO.read(new ByteArrayInputStream(imageBytes));
-            if (img == null) {
-                log.warn("模板裁切：无法解码图片");
-                return;
-            }
-
-            int gridRows = template.getGridRows();
-            int gridCols = template.getGridCols();
-            double headerRatio = template.getHeaderRatio();
-
-            // 计算书写区域
-            int headerPixels = (int) (img.getHeight() * headerRatio);
-            int gridHeight = img.getHeight() - headerPixels;
-            int cellW = img.getWidth() / gridCols;
-            int cellH = gridHeight / gridRows;
-
-            log.info("模板裁切: {}x{} 网格, 头部 {}px, 单元格 {}x{}px",
-                    gridRows, gridCols, headerPixels, cellW, cellH);
-
-            // 预裁切所有被点评的字的单元格
-            int matched = 0;
-            for (CharAnalysis analysis : result.getAnalyses()) {
-                int row = analysis.getRow();
-                int col = analysis.getColumn();
-
-                if (row <= 0 || col <= 0 || row > gridRows || col > gridCols) {
-                    log.debug("跳过越界位置: 「{}」第{}行第{}列", analysis.getRecognizedChar(), row, col);
-                    continue;
-                }
-
-                // 计算裁切区域
-                int x = (col - 1) * cellW;
-                int y = headerPixels + (row - 1) * cellH;
-
-                // 向内收缩 5% 避免网格线
-                int inset = (int) (Math.min(cellW, cellH) * 0.05);
-                int cropX = Math.max(0, x + inset);
-                int cropY = Math.max(0, y + inset);
-                int cropW = Math.min(cellW - inset * 2, img.getWidth() - cropX);
-                int cropH = Math.min(cellH - inset * 2, img.getHeight() - cropY);
-
-                if (cropW <= 0 || cropH <= 0) continue;
-
-                BufferedImage cell = img.getSubimage(cropX, cropY, cropW, cropH);
-                String base64 = bufferedImageToBase64(cell);
-                analysis.setCharImageBase64(base64);
-                matched++;
-
-                log.debug("模板裁切成功: 「{}」第{}行第{}列 → {}x{}px",
-                        analysis.getRecognizedChar(), row, col, cropW, cropH);
-            }
-
-            log.info("模板裁切完成: {}/{} 个字匹配成功", matched, result.getAnalyses().size());
-
-        } catch (Exception e) {
-            log.warn("模板裁切失败（不影响批改结果）: {}", e.getMessage());
-        }
-    }
-
-    /**
-     * BufferedImage 转 Base64 PNG 字符串。
-     */
-    private String bufferedImageToBase64(BufferedImage img) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ImageIO.write(img, "png", baos);
-        return Base64.getEncoder().encodeToString(baos.toByteArray());
     }
 
     // ======================== SSE 工具 ========================

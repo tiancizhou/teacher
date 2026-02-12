@@ -107,40 +107,6 @@
             padding: 36px; margin-bottom: 30px; border: 1px solid rgba(196,160,85,0.15); position: relative;
         }
 
-        /* ==================== Template Selector ==================== */
-        .template-section { margin-bottom: 20px; }
-        .template-section .section-label {
-            font-family: 'Noto Serif SC', serif; font-size: 0.92rem; font-weight: 600;
-            color: var(--charcoal); margin-bottom: 12px; letter-spacing: 1px;
-            display: flex; align-items: center; gap: 6px;
-        }
-        .template-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-            gap: 10px;
-        }
-        .template-card {
-            padding: 12px 10px; border: 2px solid rgba(196,160,85,0.15); border-radius: 8px;
-            text-align: center; cursor: pointer; transition: all 0.25s;
-            background: var(--cream-light);
-            -webkit-tap-highlight-color: transparent;
-        }
-        .template-card:hover { border-color: var(--gold-light); background: #faf5eb; }
-        .template-card.selected {
-            border-color: var(--gold); background: linear-gradient(135deg, #faf5eb, #f5ece0);
-            box-shadow: 0 0 0 3px rgba(196,160,85,0.15);
-        }
-        .template-card .tpl-name {
-            font-family: 'Noto Serif SC', serif; font-size: 0.88rem; font-weight: 600;
-            color: var(--charcoal); margin-bottom: 4px;
-        }
-        .template-card .tpl-desc {
-            font-size: 0.72rem; color: var(--grey-text);
-        }
-        .template-card .tpl-icon {
-            font-size: 1.4rem; margin-bottom: 4px; display: block;
-        }
-        .template-card.free-mode { border-style: dashed; }
-
         /* ==================== Upload Area ==================== */
         .upload-area {
             border: 2px dashed var(--grey-light); border-radius: 12px;
@@ -210,6 +176,32 @@
         .crop-magnifier.visible { display: block; }
         .crop-magnifier canvas { width: 100%; height: 100%; display: block; }
         .crop-actions { margin-top: 12px; display: flex; gap: 10px; justify-content: center; }
+        .crop-submit-float {
+            display: none;
+            position: absolute;
+            left: 0;
+            top: 0;
+            z-index: 6;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(4px) scale(0.96);
+            transition: opacity 0.18s ease, transform 0.18s ease;
+        }
+        .crop-submit-float.visible {
+            display: block;
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+        .crop-submit-float .btn-primary {
+            margin-top: 0;
+            padding: 9px 14px;
+            font-size: 0.84rem;
+            letter-spacing: 1px;
+            border-radius: 999px;
+            pointer-events: auto;
+            box-shadow: 0 10px 24px rgba(194,58,46,0.34);
+            white-space: nowrap;
+        }
 
         /* ==================== Buttons ==================== */
         .btn-primary {
@@ -419,10 +411,6 @@
             .mode-tabs { max-width: 100%; margin-bottom: 16px; }
             .mode-tab { font-size: 0.88rem; padding: 9px 12px; letter-spacing: 1px; }
             .card { padding: 20px 16px; margin-bottom: 16px; border-radius: 10px; }
-            .template-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
-            .template-card { padding: 10px 6px; }
-            .template-card .tpl-name { font-size: 0.78rem; }
-            .template-card .tpl-icon { font-size: 1.2rem; }
             .upload-area { padding: 40px 16px; border-radius: 10px; }
             .upload-area .icon { font-size: 40px; margin-bottom: 10px; }
             .upload-area h3 { font-size: 1rem; }
@@ -433,6 +421,7 @@
             .crop-canvas-wrap canvas { max-width: 100%; width: auto; height: auto; }
             .crop-magnifier { width: 120px; height: 120px; border-width: 2px; }
             .crop-actions { flex-direction: column; }
+            .crop-actions #cropSubmitBtn { display: none; }
             .loading { padding: 16px 0; }
             .loading-card { padding: 28px 16px 24px; border-radius: 12px; }
             .ink-animation { width: 72px; height: 72px; margin-bottom: 16px; }
@@ -506,17 +495,6 @@
     <!-- ==================== Whole Page Mode ==================== -->
     <div id="wholePageMode">
         <div class="card" id="uploadCard">
-            <!-- Template Selector -->
-            <div class="template-section" id="templateSection">
-                <div class="section-label">
-                    <span>&#128218;</span>
-                    <span>选择字帖模板</span>
-                </div>
-                <div class="template-grid" id="templateGrid">
-                    <!-- Populated by JS -->
-                </div>
-            </div>
-
             <!-- Desktop Upload -->
             <div class="upload-area desktop-upload" id="uploadArea">
                 <div class="icon">&#128396;</div>
@@ -560,42 +538,44 @@
                 <span>单字精批 — 深度分析一个字</span>
             </div>
 
-            <!-- Direct Upload -->
-            <div class="upload-area desktop-upload" id="singleUploadArea">
-                <div class="icon">&#9998;</div>
-                <h3>上传或拍摄单个字的照片</h3>
-                <p>对准练习纸上的一个字拍照，AI 将进行深度分析</p>
-                <input type="file" id="singleFileInput" accept="image/jpeg,image/png,image/webp">
-            </div>
+            <div id="singleSourceSection">
+                <!-- Direct Upload -->
+                <div class="upload-area desktop-upload" id="singleUploadArea">
+                    <div class="icon">&#9998;</div>
+                    <h3>上传或拍摄单个字的照片</h3>
+                    <p>对准练习纸上的一个字拍照，AI 将进行深度分析</p>
+                    <input type="file" id="singleFileInput" accept="image/jpeg,image/png,image/webp">
+                </div>
 
-            <!-- Mobile Single Upload -->
-            <div class="mobile-upload" id="singleMobileUpload" style="display:none;">
-                <div class="mobile-upload-btns">
-                    <label class="mobile-upload-btn camera-btn">
-                        <span class="mobile-btn-icon">&#128247;</span>
-                        <span class="mobile-btn-text">拍照</span>
-                        <span class="mobile-btn-hint">对准单个字拍照</span>
-                        <input type="file" id="singleCameraInput" accept="image/*" capture="environment">
-                    </label>
-                    <label class="mobile-upload-btn album-btn">
-                        <span class="mobile-btn-icon">&#128444;</span>
-                        <span class="mobile-btn-text">选图</span>
-                        <span class="mobile-btn-hint">从相册选择</span>
-                        <input type="file" id="singleAlbumInput" accept="image/jpeg,image/png,image/webp">
+                <!-- Mobile Single Upload -->
+                <div class="mobile-upload" id="singleMobileUpload" style="display:none;">
+                    <div class="mobile-upload-btns">
+                        <label class="mobile-upload-btn camera-btn">
+                            <span class="mobile-btn-icon">&#128247;</span>
+                            <span class="mobile-btn-text">拍照</span>
+                            <span class="mobile-btn-hint">对准单个字拍照</span>
+                            <input type="file" id="singleCameraInput" accept="image/*" capture="environment">
+                        </label>
+                        <label class="mobile-upload-btn album-btn">
+                            <span class="mobile-btn-icon">&#128444;</span>
+                            <span class="mobile-btn-text">选图</span>
+                            <span class="mobile-btn-hint">从相册选择</span>
+                            <input type="file" id="singleAlbumInput" accept="image/jpeg,image/png,image/webp">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Or: Crop from whole page -->
+                <div style="text-align:center;margin:20px 0 12px;color:var(--grey-light);font-size:0.85rem;">
+                    ── 或从整页作业中框选 ──
+                </div>
+                <div style="text-align:center;">
+                    <label class="btn-secondary" style="cursor:pointer;position:relative;">
+                        上传整页照片，然后框选
+                        <input type="file" id="cropPageInput" accept="image/jpeg,image/png,image/webp"
+                               style="position:absolute;width:100%;height:100%;top:0;left:0;opacity:0;cursor:pointer;">
                     </label>
                 </div>
-            </div>
-
-            <!-- Or: Crop from whole page -->
-            <div style="text-align:center;margin:20px 0 12px;color:var(--grey-light);font-size:0.85rem;">
-                ── 或从整页作业中框选 ──
-            </div>
-            <div style="text-align:center;">
-                <label class="btn-secondary" style="cursor:pointer;position:relative;">
-                    上传整页照片，然后框选
-                    <input type="file" id="cropPageInput" accept="image/jpeg,image/png,image/webp"
-                           style="position:absolute;width:100%;height:100%;top:0;left:0;opacity:0;cursor:pointer;">
-                </label>
             </div>
 
             <!-- Crop Area -->
@@ -606,8 +586,16 @@
                     <div class="crop-magnifier" id="cropMagnifier">
                         <canvas id="cropMagnifierCanvas" width="132" height="132"></canvas>
                     </div>
+                    <div class="crop-submit-float" id="cropSubmitFloat">
+                        <button class="btn-primary" id="cropSubmitFloatBtn" disabled onclick="submitCroppedChar()">开始精批</button>
+                    </div>
                 </div>
                 <div class="crop-actions">
+                    <label class="btn-secondary" style="cursor:pointer;position:relative;">
+                        重新选图
+                        <input type="file" id="cropPageInputBottom" accept="image/jpeg,image/png,image/webp"
+                               style="position:absolute;width:100%;height:100%;top:0;left:0;opacity:0;cursor:pointer;">
+                    </label>
                     <button class="btn-secondary" onclick="resetCrop()">重新框选</button>
                     <button class="btn-primary" id="cropSubmitBtn" style="margin-top:0;padding:10px 28px;font-size:0.92rem;letter-spacing:2px;" disabled onclick="submitCroppedChar()">开始精批</button>
                 </div>
@@ -725,8 +713,6 @@ var selectedFile = null;
 var singleSelectedFile = null;
 var previewDataUrl = null;
 var singlePreviewDataUrl = null;
-var selectedTemplateId = null;
-var templates = [];
 var streamedText = '';
 var aiOutputStarted = false;
 
@@ -773,6 +759,7 @@ setupMobileUpload();
 // ==================== Mode Switching ====================
 function switchMode(mode) {
     currentMode = mode;
+    hideCropSubmitFloat();
     document.querySelectorAll('.mode-tab').forEach(function(t) {
         t.classList.toggle('active', t.dataset.mode === mode);
     });
@@ -783,45 +770,6 @@ function switchMode(mode) {
     document.getElementById('singleResultSection').classList.remove('visible');
     loadingSection.classList.remove('visible');
 }
-
-// ==================== Template Loading ====================
-function loadTemplates() {
-    fetch('/api/homework/templates')
-        .then(function(r) { return r.json(); })
-        .then(function(resp) {
-            if (resp.success && resp.data) {
-                templates = resp.data;
-                renderTemplateGrid();
-            }
-        })
-        .catch(function(e) { console.warn('加载模板失败:', e); });
-}
-
-function renderTemplateGrid() {
-    var grid = document.getElementById('templateGrid');
-    // Free mode card
-    var html = '<div class="template-card free-mode selected" data-id="" onclick="selectTemplate(null, this)">' +
-        '<span class="tpl-icon">&#128196;</span>' +
-        '<div class="tpl-name">自由模式</div>' +
-        '<div class="tpl-desc">不限字帖</div></div>';
-
-    var typeIcons = { TIAN: '&#9608;', MI: '&#10010;', HUI: '&#9635;', PLAIN: '&#9633;' };
-    templates.forEach(function(t) {
-        html += '<div class="template-card" data-id="' + t.id + '" onclick="selectTemplate(' + t.id + ', this)">' +
-            '<span class="tpl-icon">' + (typeIcons[t.gridType] || '&#9633;') + '</span>' +
-            '<div class="tpl-name">' + t.name + '</div>' +
-            '<div class="tpl-desc">' + t.gridRows + '行' + t.gridCols + '列</div></div>';
-    });
-    grid.innerHTML = html;
-}
-
-function selectTemplate(id, el) {
-    selectedTemplateId = id;
-    document.querySelectorAll('.template-card').forEach(function(c) { c.classList.remove('selected'); });
-    if (el) el.classList.add('selected');
-}
-
-loadTemplates();
 
 // ==================== File Handling (Whole Page) ====================
 fileInput.addEventListener('change', function(e) { if (e.target.files[0]) handleFileSelect(e.target.files[0]); });
@@ -869,10 +817,24 @@ uploadArea.addEventListener('drop', function(e) {
 document.getElementById('singleFileInput').addEventListener('change', function(e) { if (e.target.files[0]) handleSingleFileSelect(e.target.files[0]); });
 document.getElementById('singleCameraInput').addEventListener('change', function(e) { if (e.target.files[0]) handleSingleFileSelect(e.target.files[0]); });
 document.getElementById('singleAlbumInput').addEventListener('change', function(e) { if (e.target.files[0]) handleSingleFileSelect(e.target.files[0]); });
+document.getElementById('cropPageInputBottom').addEventListener('change', function(e) {
+    if (e.target.files[0]) {
+        var topCropInput = document.getElementById('cropPageInput');
+        if (topCropInput) topCropInput.value = '';
+        handleCropPageFileSelect(e.target.files[0]);
+    }
+});
+
+function setSingleSourceSectionVisible(visible) {
+    var sourceSection = document.getElementById('singleSourceSection');
+    if (!sourceSection) return;
+    sourceSection.style.display = visible ? 'block' : 'none';
+}
 
 function handleSingleFileSelect(file) {
     if (file.size > 20 * 1024 * 1024) { alert('图片太大，请选择 20MB 以内的照片'); return; }
     singleSelectedFile = file;
+    setSingleSourceSectionVisible(true);
     var reader = new FileReader();
     reader.onload = function(ev) {
         singlePreviewDataUrl = ev.target.result;
@@ -880,6 +842,7 @@ function handleSingleFileSelect(file) {
         document.getElementById('singleUploadArea').style.display = 'none';
         document.getElementById('singleMobileUpload').style.display = 'none';
         document.getElementById('cropSection').classList.remove('visible');
+        hideCropSubmitFloat();
         document.getElementById('singlePreviewSection').classList.add('visible');
     };
     reader.readAsDataURL(file);
@@ -888,6 +851,8 @@ function handleSingleFileSelect(file) {
 function reselectSingleImage() {
     singleSelectedFile = null; singlePreviewDataUrl = null;
     document.getElementById('singlePreviewSection').classList.remove('visible');
+    setSingleSourceSectionVisible(true);
+    hideCropSubmitFloat();
     document.getElementById('singleFileInput').value = '';
     document.getElementById('singleCameraInput').value = '';
     document.getElementById('singleAlbumInput').value = '';
@@ -932,10 +897,23 @@ var pinchState = {
 var cropMagnifier = document.getElementById('cropMagnifier');
 var cropMagnifierCanvas = document.getElementById('cropMagnifierCanvas');
 var cropMagnifierCtx = cropMagnifierCanvas ? cropMagnifierCanvas.getContext('2d') : null;
+var cropSubmitBtn = document.getElementById('cropSubmitBtn');
+var cropSubmitFloat = document.getElementById('cropSubmitFloat');
+var cropSubmitFloatBtn = document.getElementById('cropSubmitFloatBtn');
+var cropSubmitBaseText = '开始精批';
 
 document.getElementById('cropPageInput').addEventListener('change', function(e) {
     var file = e.target.files[0];
+    handleCropPageFileSelect(file);
+});
+
+function handleCropPageFileSelect(file) {
     if (!file) return;
+    setSingleSourceSectionVisible(false);
+    document.getElementById('singlePreviewSection').classList.remove('visible');
+    singleSelectedFile = null;
+    singlePreviewDataUrl = null;
+    hideCropSubmitFloat();
     var reader = new FileReader();
     reader.onload = function(ev) {
         cropImg = new Image();
@@ -973,13 +951,13 @@ document.getElementById('cropPageInput').addEventListener('change', function(e) 
             }
 
             document.getElementById('cropSection').classList.add('visible');
-            document.getElementById('cropSubmitBtn').disabled = true;
             croppedBlob = null;
+            syncCropSubmitState();
         };
         cropImg.src = ev.target.result;
     };
     reader.readAsDataURL(file);
-});
+}
 
 var cropCanvas = document.getElementById('cropCanvas');
 cropCanvas.addEventListener('mousedown', startCrop);
@@ -1031,6 +1009,117 @@ function clamp(value, min, max) {
 
 function cloneSelection(sel) {
     return sel ? { x: sel.x, y: sel.y, w: sel.w, h: sel.h } : null;
+}
+
+function hideCropSubmitFloat() {
+    if (cropSubmitFloat) cropSubmitFloat.classList.remove('visible');
+}
+
+function syncCropSubmitState() {
+    var enabled = !!croppedBlob;
+    if (cropSubmitBtn) cropSubmitBtn.disabled = !enabled;
+    if (cropSubmitFloatBtn) cropSubmitFloatBtn.disabled = !enabled;
+
+    var submitText = cropSubmitBaseText;
+    if (enabled && cropSelection && cropSelection.w > 0 && cropSelection.h > 0) {
+        var sw = Math.max(1, Math.round(cropSelection.w));
+        var sh = Math.max(1, Math.round(cropSelection.h));
+        submitText = cropSubmitBaseText + '（' + sw + '×' + sh + '）';
+    }
+    if (cropSubmitBtn) cropSubmitBtn.textContent = submitText;
+    if (cropSubmitFloatBtn) cropSubmitFloatBtn.textContent = cropSubmitBaseText;
+
+    var cropSection = document.getElementById('cropSection');
+    var showFloat = isMobile && enabled && currentMode === 'single' && cropSection && cropSection.classList.contains('visible') && !!cropSelection;
+    if (!cropSubmitFloat) return;
+    if (!showFloat) {
+        cropSubmitFloat.classList.remove('visible');
+        return;
+    }
+    var rect = getSelectionCanvasRect(cropSelection);
+    if (!rect) {
+        cropSubmitFloat.classList.remove('visible');
+        return;
+    }
+
+    var cropCanvasWrap = document.getElementById('cropCanvasWrap');
+    var canvasRect = cropCanvas.getBoundingClientRect();
+    var wrapRect = cropCanvasWrap ? cropCanvasWrap.getBoundingClientRect() : canvasRect;
+    var displayW = canvasRect.width || cropCanvas.clientWidth || cropCanvas.width;
+    var displayH = canvasRect.height || cropCanvas.clientHeight || cropCanvas.height;
+    var scaleX = cropCanvas.width ? (displayW / cropCanvas.width) : 1;
+    var scaleY = cropCanvas.height ? (displayH / cropCanvas.height) : 1;
+    var canvasOffsetX = canvasRect.left - wrapRect.left;
+    var canvasOffsetY = canvasRect.top - wrapRect.top;
+    var rectDisplay = {
+        x: rect.x * scaleX + canvasOffsetX,
+        y: rect.y * scaleY + canvasOffsetY,
+        w: rect.w * scaleX,
+        h: rect.h * scaleY
+    };
+
+    cropSubmitFloat.classList.add('visible');
+
+    var floatW = cropSubmitFloat.offsetWidth || 120;
+    var floatH = cropSubmitFloat.offsetHeight || 44;
+    var gap = 10;
+    var edge = 8;
+    var minTop = canvasOffsetY + edge;
+    var minLeft = canvasOffsetX + edge;
+    var maxTop = Math.max(minTop, canvasOffsetY + displayH - floatH - edge);
+    var maxLeft = Math.max(minLeft, canvasOffsetX + displayW - floatW - edge);
+
+    var candidates = [
+        {
+            left: rectDisplay.x + rectDisplay.w + gap,
+            top: rectDisplay.y + rectDisplay.h / 2 - floatH / 2
+        },
+        {
+            left: rectDisplay.x - floatW - gap,
+            top: rectDisplay.y + rectDisplay.h / 2 - floatH / 2
+        },
+        {
+            left: rectDisplay.x + rectDisplay.w - floatW,
+            top: rectDisplay.y - floatH - gap
+        },
+        {
+            left: rectDisplay.x + rectDisplay.w - floatW,
+            top: rectDisplay.y + rectDisplay.h + gap
+        }
+    ];
+
+    var chosen = null;
+    var selectionCenterX = rectDisplay.x + rectDisplay.w / 2;
+    var selectionCenterY = rectDisplay.y + rectDisplay.h / 2;
+    var bestDistance = Infinity;
+    for (var ci = 0; ci < candidates.length; ci++) {
+        var c = candidates[ci];
+        if (c.left >= minLeft && c.left <= maxLeft && c.top >= minTop && c.top <= maxTop) {
+            var centerX = c.left + floatW / 2;
+            var centerY = c.top + floatH / 2;
+            var distance = Math.abs(centerX - selectionCenterX) + Math.abs(centerY - selectionCenterY);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                chosen = c;
+            }
+        }
+    }
+
+    var left;
+    var top;
+    if (chosen) {
+        left = chosen.left;
+        top = chosen.top;
+    } else {
+        left = clamp(selectionCenterX - floatW / 2, minLeft, maxLeft);
+        top = clamp(rectDisplay.y - floatH - gap, minTop, maxTop);
+        if (top <= minTop + 1) {
+            top = clamp(rectDisplay.y + rectDisplay.h + gap, minTop, maxTop);
+        }
+    }
+
+    cropSubmitFloat.style.left = Math.round(left) + 'px';
+    cropSubmitFloat.style.top = Math.round(top) + 'px';
 }
 
 function clampCropViewPan() {
@@ -1132,6 +1221,7 @@ function movePinch(e) {
 
 function endPinch() {
     pinchState.active = false;
+    syncCropSubmitState();
 }
 
 function hideCropMagnifier() {
@@ -1248,7 +1338,10 @@ function renderCropCanvas() {
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(cropImg, cropView.panX, cropView.panY, drawW, drawH);
 
-    if (!cropSelection || cropSelection.w <= 0 || cropSelection.h <= 0) return;
+    if (!cropSelection || cropSelection.w <= 0 || cropSelection.h <= 0) {
+        syncCropSubmitState();
+        return;
+    }
 
     var rect = getSelectionCanvasRect(cropSelection);
     if (!rect) return;
@@ -1290,6 +1383,8 @@ function renderCropCanvas() {
         ctx.fill();
         ctx.stroke();
     });
+
+    syncCropSubmitState();
 }
 
 function startCrop(e) {
@@ -1298,6 +1393,10 @@ function startCrop(e) {
     var pos = getCropPos(e);
     var imgPos = canvasToImagePos(pos);
     showCropMagnifier(pos);
+    if (croppedBlob) {
+        croppedBlob = null;
+        syncCropSubmitState();
+    }
     cropInteraction.active = true;
     cropInteraction.startX = imgPos.x;
     cropInteraction.startY = imgPos.y;
@@ -1323,7 +1422,7 @@ function startCrop(e) {
     cropInteraction.handle = null;
     cropSelection = { x: imgPos.x, y: imgPos.y, w: 0, h: 0 };
     croppedBlob = null;
-    document.getElementById('cropSubmitBtn').disabled = true;
+    syncCropSubmitState();
     renderCropCanvas();
 }
 
@@ -1380,7 +1479,7 @@ function moveCrop(e) {
 function buildCroppedBlobFromSelection() {
     if (!cropImg || !isSelectionValid(cropSelection)) {
         croppedBlob = null;
-        document.getElementById('cropSubmitBtn').disabled = true;
+        syncCropSubmitState();
         return;
     }
 
@@ -1397,7 +1496,7 @@ function buildCroppedBlobFromSelection() {
     c2.getContext('2d').drawImage(cropImg, rx, ry, rw, rh, 0, 0, targetW, targetH);
     c2.toBlob(function(blob) {
         croppedBlob = blob;
-        document.getElementById('cropSubmitBtn').disabled = !blob;
+        syncCropSubmitState();
     }, 'image/jpeg', 0.9);
 }
 
@@ -1413,7 +1512,7 @@ function endCrop() {
     if (!isSelectionValid(cropSelection)) {
         cropSelection = null;
         croppedBlob = null;
-        document.getElementById('cropSubmitBtn').disabled = true;
+        syncCropSubmitState();
         renderCropCanvas();
         return;
     }
@@ -1435,7 +1534,7 @@ function resetCrop() {
     cropInteraction.mode = null;
     cropInteraction.handle = null;
     cropInteraction.origin = null;
-    document.getElementById('cropSubmitBtn').disabled = true;
+    syncCropSubmitState();
     if (cropImg) {
         renderCropCanvas();
     }
@@ -1443,6 +1542,7 @@ function resetCrop() {
 
 function submitCroppedChar() {
     if (!croppedBlob) return;
+    hideCropSubmitFloat();
     singleSelectedFile = new File([croppedBlob], 'cropped.jpg', { type: 'image/jpeg' });
     singlePreviewDataUrl = URL.createObjectURL(croppedBlob);
     submitSingleAnalysis();
@@ -1548,7 +1648,6 @@ async function submitAnalysis() {
     if (!selectedFile) return;
     document.getElementById('analyzeBtn').disabled = true;
     uploadCard.style.display = 'none';
-    document.getElementById('templateSection').style.display = 'none';
     loadingSection.classList.add('visible');
     document.getElementById('loadingTitle').textContent = '墨迹识别中';
     document.getElementById('loadingSubtitle').textContent = 'AI 正在细察每一笔一画';
@@ -1565,7 +1664,6 @@ async function submitAnalysis() {
 
         var formData = new FormData();
         formData.append('file', compressedFile);
-        if (selectedTemplateId) formData.append('templateId', selectedTemplateId);
 
         var response = await fetch('/api/homework/analyze-stream', { method: 'POST', body: formData });
         if (!response.ok) throw new Error('服务器返回错误: ' + response.status);
@@ -1608,6 +1706,7 @@ async function submitAnalysis() {
 // ==================== SSE: Single Char Submit ====================
 async function submitSingleAnalysis() {
     if (!singleSelectedFile) return;
+    hideCropSubmitFloat();
     document.getElementById('singleAnalyzeBtn').disabled = true;
     document.getElementById('singleUploadCard').style.display = 'none';
     loadingSection.classList.add('visible');
@@ -1755,7 +1854,7 @@ function renderResults(result) {
 
         var leftHtml;
         if (hasBackendImage) {
-            // 只有后端模板裁切成功才显示截图
+            // 仅当后端返回单字截图时显示
             leftHtml = '<div class="char-crop-wrap" id="crop-' + idx + '"><div class="char-index">' + charDisplay + '</div></div>';
         } else {
             leftHtml = '<div class="char-index">' + charDisplay + '</div>';
@@ -1792,7 +1891,7 @@ function renderResults(result) {
     if (!hasAnyImage && result.analyses.length > 0) {
         var tipDiv = document.createElement('div');
         tipDiv.style.cssText = 'text-align:center;color:var(--grey-text);font-size:0.82rem;padding:14px 16px;margin-top:12px;background:linear-gradient(135deg,#f8f1e4,#f5ecdb);border:1px solid rgba(196,160,85,0.15);border-radius:8px;line-height:1.6;';
-        tipDiv.innerHTML = '&#128161; <b>提示</b>：想要看到每个字的精确截图？请在上传时<b>选择字帖模板</b>，或使用<b>「单字精批」</b>模式对单个字进行深度分析。';
+        tipDiv.innerHTML = '&#128161; <b>提示</b>：当前结果未返回单字截图。若需要对某个字进行精确观察，请使用<b>「单字精批」</b>模式。';
         charGrid.parentNode.appendChild(tipDiv);
     }
 }
@@ -1895,6 +1994,7 @@ function resetPage() {
     streamedText = ''; aiOutputStarted = false;
     croppedBlob = null; cropImg = null; cropSelection = null;
     hideCropMagnifier();
+    hideCropSubmitFloat();
     endPinch();
     cropView.zoom = 1;
     cropView.panX = 0;
@@ -1911,13 +2011,13 @@ function resetPage() {
     previewSection.classList.remove('visible');
     document.getElementById('singlePreviewSection').classList.remove('visible');
     document.getElementById('cropSection').classList.remove('visible');
+    setSingleSourceSectionVisible(true);
     loadingSection.classList.remove('visible');
     resultsSection.classList.remove('visible');
     document.getElementById('singleResultSection').classList.remove('visible');
     // Show upload cards
     uploadCard.style.display = 'block';
     document.getElementById('singleUploadCard').style.display = 'block';
-    document.getElementById('templateSection').style.display = 'block';
     document.getElementById('analyzeBtn').disabled = false;
     document.getElementById('singleAnalyzeBtn').disabled = false;
     // Restore upload areas
