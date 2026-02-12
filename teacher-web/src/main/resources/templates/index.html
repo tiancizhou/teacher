@@ -192,7 +192,23 @@
             border: 2px solid var(--paper-dark); border-radius: 4px;
             box-shadow: 0 2px 12px rgba(0,0,0,0.08);
         }
-        .crop-canvas-wrap canvas { display: block; max-width: 100%; }
+        .crop-canvas-wrap canvas {
+            display: block; max-width: 100%;
+            touch-action: none; user-select: none; -webkit-user-select: none;
+        }
+        .crop-magnifier {
+            position: absolute; right: 8px; top: 8px;
+            width: 132px; height: 132px;
+            border-radius: 50%; overflow: hidden;
+            border: 3px solid rgba(194,58,46,0.9);
+            background: #fff;
+            box-shadow: 0 8px 18px rgba(0,0,0,0.25);
+            pointer-events: none;
+            display: none;
+            z-index: 3;
+        }
+        .crop-magnifier.visible { display: block; }
+        .crop-magnifier canvas { width: 100%; height: 100%; display: block; }
         .crop-actions { margin-top: 12px; display: flex; gap: 10px; justify-content: center; }
 
         /* ==================== Buttons ==================== */
@@ -413,6 +429,10 @@
             .preview-img { max-height: 200px; }
             .btn-primary { display: block; width: 100%; padding: 14px 20px; font-size: 1rem; letter-spacing: 3px; }
             .btn-seal { display: block; width: 100%; padding: 12px 20px; text-align: center; letter-spacing: 4px; }
+            .crop-canvas-wrap { width: 100%; }
+            .crop-canvas-wrap canvas { max-width: 100%; width: auto; height: auto; }
+            .crop-magnifier { width: 120px; height: 120px; border-width: 2px; }
+            .crop-actions { flex-direction: column; }
             .loading { padding: 16px 0; }
             .loading-card { padding: 28px 16px 24px; border-radius: 12px; }
             .ink-animation { width: 72px; height: 72px; margin-bottom: 16px; }
@@ -580,9 +600,12 @@
 
             <!-- Crop Area -->
             <div class="crop-section" id="cropSection">
-                <div class="crop-hint">在图片上拖拽框选要精批的字，松手后自动截取</div>
+                <div class="crop-hint">在图片上拖拽框选要精批的字；支持双指捏合缩放整图。</div>
                 <div class="crop-canvas-wrap" id="cropCanvasWrap">
                     <canvas id="cropCanvas"></canvas>
+                    <div class="crop-magnifier" id="cropMagnifier">
+                        <canvas id="cropMagnifierCanvas" width="132" height="132"></canvas>
+                    </div>
                 </div>
                 <div class="crop-actions">
                     <button class="btn-secondary" onclick="resetCrop()">重新框选</button>
@@ -873,8 +896,42 @@ function reselectSingleImage() {
 }
 
 // ==================== Crop from page ====================
-var cropImg = null, cropStartX = 0, cropStartY = 0, cropEndX = 0, cropEndY = 0, isCropping = false;
+var cropImg = null;
 var croppedBlob = null;
+var cropSelection = null;
+var cropInteraction = {
+    active: false,
+    mode: null,      // 'draw' | 'move' | 'resize'
+    handle: null,    // 'nw' | 'ne' | 'sw' | 'se'
+    startX: 0,
+    startY: 0,
+    offsetX: 0,
+    offsetY: 0,
+    origin: null
+};
+var CROP_MIN_SIZE = 20;
+var CROP_HANDLE_RADIUS = 8;
+var CROP_MAGNIFIER_ZOOM = 3;
+var cropView = {
+    baseScale: 1,
+    zoom: 1,
+    minZoom: 1,
+    maxZoom: 4,
+    panX: 0,
+    panY: 0
+};
+var pinchState = {
+    active: false,
+    startDistance: 0,
+    startZoom: 1,
+    startMidX: 0,
+    startMidY: 0,
+    startImgX: 0,
+    startImgY: 0
+};
+var cropMagnifier = document.getElementById('cropMagnifier');
+var cropMagnifierCanvas = document.getElementById('cropMagnifierCanvas');
+var cropMagnifierCtx = cropMagnifierCanvas ? cropMagnifierCanvas.getContext('2d') : null;
 
 document.getElementById('cropPageInput').addEventListener('change', function(e) {
     var file = e.target.files[0];
@@ -884,13 +941,37 @@ document.getElementById('cropPageInput').addEventListener('change', function(e) 
         cropImg = new Image();
         cropImg.onload = function() {
             var canvas = document.getElementById('cropCanvas');
-            // Scale to fit max 500px wide
-            var scale = Math.min(500 / cropImg.width, 600 / cropImg.height, 1);
-            canvas.width = cropImg.width * scale;
-            canvas.height = cropImg.height * scale;
-            canvas._scale = scale;
-            var ctx = canvas.getContext('2d');
-            ctx.drawImage(cropImg, 0, 0, canvas.width, canvas.height);
+            var maxDisplayWidth = isMobile ? Math.min(window.innerWidth - 28, 520) : 640;
+            var maxDisplayHeight = isMobile ? Math.min(window.innerHeight * 0.72, 680) : 760;
+            maxDisplayWidth = Math.max(maxDisplayWidth, 240);
+            maxDisplayHeight = Math.max(maxDisplayHeight, 240);
+            var displayScale = Math.min(maxDisplayWidth / cropImg.width, maxDisplayHeight / cropImg.height, 1);
+            var dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+            var renderScale = Math.min(1, displayScale * dpr);
+            canvas.width = Math.round(cropImg.width * renderScale);
+            canvas.height = Math.round(cropImg.height * renderScale);
+            canvas.style.width = Math.round(cropImg.width * displayScale) + 'px';
+            canvas.style.height = Math.round(cropImg.height * displayScale) + 'px';
+            cropView.baseScale = renderScale;
+            cropView.zoom = 1;
+            cropView.minZoom = 1;
+            cropView.maxZoom = isMobile ? 4 : 3;
+            cropView.panX = 0;
+            cropView.panY = 0;
+            clampCropViewPan();
+            cropSelection = null;
+            cropInteraction.active = false;
+            pinchState.active = false;
+            hideCropMagnifier();
+            renderCropCanvas();
+
+            var cropHint = document.querySelector('#cropSection .crop-hint');
+            if (cropHint) {
+                cropHint.textContent = isMobile
+                    ? '先框大概范围，再拖动框或四角微调；支持双指捏合缩放整图。'
+                    : '拖拽框选目标字，框内可移动，拖动四角可微调。';
+            }
+
             document.getElementById('cropSection').classList.add('visible');
             document.getElementById('cropSubmitBtn').disabled = true;
             croppedBlob = null;
@@ -903,69 +984,460 @@ document.getElementById('cropPageInput').addEventListener('change', function(e) 
 var cropCanvas = document.getElementById('cropCanvas');
 cropCanvas.addEventListener('mousedown', startCrop);
 cropCanvas.addEventListener('mousemove', moveCrop);
-cropCanvas.addEventListener('mouseup', endCrop);
-cropCanvas.addEventListener('touchstart', function(e) { e.preventDefault(); var t = e.touches[0]; startCrop(t); }, {passive: false});
-cropCanvas.addEventListener('touchmove', function(e) { e.preventDefault(); var t = e.touches[0]; moveCrop(t); }, {passive: false});
-cropCanvas.addEventListener('touchend', function(e) { endCrop(e); }, {passive: false});
+window.addEventListener('mouseup', endCrop);
+cropCanvas.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    if (e.touches.length >= 2) {
+        beginPinch(e);
+        return;
+    }
+    if (pinchState.active) return;
+    var t = e.touches[0];
+    if (t) startCrop(t);
+}, {passive: false});
+cropCanvas.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    if (e.touches.length >= 2) {
+        if (!pinchState.active) beginPinch(e);
+        else movePinch(e);
+        return;
+    }
+    if (pinchState.active) return;
+    var t = e.touches[0];
+    if (t) moveCrop(t);
+}, {passive: false});
+window.addEventListener('touchend', function(e) {
+    if (pinchState.active && e.touches.length < 2) {
+        endPinch();
+    }
+    if (cropInteraction.active && e.touches.length === 0) {
+        e.preventDefault();
+        endCrop(e);
+    }
+}, {passive: false});
+window.addEventListener('touchcancel', function(e) {
+    if (pinchState.active) {
+        endPinch();
+    }
+    if (cropInteraction.active) {
+        e.preventDefault();
+        endCrop(e);
+    }
+}, {passive: false});
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function cloneSelection(sel) {
+    return sel ? { x: sel.x, y: sel.y, w: sel.w, h: sel.h } : null;
+}
+
+function clampCropViewPan() {
+    if (!cropImg) return;
+    var drawScale = cropView.baseScale * cropView.zoom;
+    var drawW = cropImg.width * drawScale;
+    var drawH = cropImg.height * drawScale;
+    if (drawW <= cropCanvas.width) {
+        cropView.panX = (cropCanvas.width - drawW) / 2;
+    } else {
+        cropView.panX = clamp(cropView.panX, cropCanvas.width - drawW, 0);
+    }
+    if (drawH <= cropCanvas.height) {
+        cropView.panY = (cropCanvas.height - drawH) / 2;
+    } else {
+        cropView.panY = clamp(cropView.panY, cropCanvas.height - drawH, 0);
+    }
+}
+
+function getTouchDistance(touches) {
+    if (!touches || touches.length < 2) return 0;
+    var dx = touches[0].clientX - touches[1].clientX;
+    var dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getTouchMidpoint(touches) {
+    var midClientX = (touches[0].clientX + touches[1].clientX) / 2;
+    var midClientY = (touches[0].clientY + touches[1].clientY) / 2;
+    return getCropPos({ clientX: midClientX, clientY: midClientY });
+}
+
+function canvasToImagePos(pos) {
+    if (!cropImg) return { x: 0, y: 0 };
+    var drawScale = cropView.baseScale * cropView.zoom;
+    if (!drawScale) return { x: 0, y: 0 };
+    return {
+        x: clamp((pos.x - cropView.panX) / drawScale, 0, cropImg.width),
+        y: clamp((pos.y - cropView.panY) / drawScale, 0, cropImg.height)
+    };
+}
+
+function imageToCanvasPos(pos) {
+    var drawScale = cropView.baseScale * cropView.zoom;
+    return {
+        x: pos.x * drawScale + cropView.panX,
+        y: pos.y * drawScale + cropView.panY
+    };
+}
+
+function getSelectionCanvasRect(sel) {
+    if (!sel) return null;
+    var p1 = imageToCanvasPos({ x: sel.x, y: sel.y });
+    var p2 = imageToCanvasPos({ x: sel.x + sel.w, y: sel.y + sel.h });
+    var left = Math.min(p1.x, p2.x);
+    var top = Math.min(p1.y, p2.y);
+    return {
+        x: left,
+        y: top,
+        w: Math.abs(p2.x - p1.x),
+        h: Math.abs(p2.y - p1.y)
+    };
+}
+
+function beginPinch(e) {
+    if (!cropImg || !e.touches || e.touches.length < 2) return;
+    if (cropInteraction.active) {
+        endCrop();
+    }
+    hideCropMagnifier();
+    var distance = getTouchDistance(e.touches);
+    if (!distance) return;
+    var midpoint = getTouchMidpoint(e.touches);
+    var imagePoint = canvasToImagePos(midpoint);
+
+    pinchState.active = true;
+    pinchState.startDistance = distance;
+    pinchState.startZoom = cropView.zoom;
+    pinchState.startMidX = midpoint.x;
+    pinchState.startMidY = midpoint.y;
+    pinchState.startImgX = imagePoint.x;
+    pinchState.startImgY = imagePoint.y;
+}
+
+function movePinch(e) {
+    if (!pinchState.active || !cropImg || !e.touches || e.touches.length < 2) return;
+    var distance = getTouchDistance(e.touches);
+    if (!distance || !pinchState.startDistance) return;
+    var midpoint = getTouchMidpoint(e.touches);
+    var zoomFactor = distance / pinchState.startDistance;
+
+    cropView.zoom = clamp(pinchState.startZoom * zoomFactor, cropView.minZoom, cropView.maxZoom);
+    var drawScale = cropView.baseScale * cropView.zoom;
+    cropView.panX = midpoint.x - pinchState.startImgX * drawScale;
+    cropView.panY = midpoint.y - pinchState.startImgY * drawScale;
+    clampCropViewPan();
+    renderCropCanvas();
+}
+
+function endPinch() {
+    pinchState.active = false;
+}
+
+function hideCropMagnifier() {
+    if (!cropMagnifier) return;
+    cropMagnifier.classList.remove('visible');
+}
+
+function setCropMagnifierPosition(pos) {
+    if (!cropMagnifier) return;
+    var placeLeft = pos.x > cropCanvas.width * 0.58;
+    var placeBottom = pos.y < cropCanvas.height * 0.42;
+    cropMagnifier.style.left = placeLeft ? '8px' : '';
+    cropMagnifier.style.right = placeLeft ? '' : '8px';
+    cropMagnifier.style.bottom = placeBottom ? '8px' : '';
+    cropMagnifier.style.top = placeBottom ? '' : '8px';
+}
+
+function renderCropMagnifier(pos) {
+    if (!isMobile || !cropImg || !cropMagnifierCanvas || !cropMagnifierCtx) return;
+    var imgPos = canvasToImagePos(pos);
+
+    var lensW = cropMagnifierCanvas.width;
+    var lensH = cropMagnifierCanvas.height;
+    var srcW = lensW / CROP_MAGNIFIER_ZOOM;
+    var srcH = lensH / CROP_MAGNIFIER_ZOOM;
+    var centerX = imgPos.x;
+    var centerY = imgPos.y;
+    var srcX = clamp(centerX - srcW / 2, 0, Math.max(0, cropImg.width - srcW));
+    var srcY = clamp(centerY - srcH / 2, 0, Math.max(0, cropImg.height - srcH));
+
+    cropMagnifierCtx.clearRect(0, 0, lensW, lensH);
+    cropMagnifierCtx.drawImage(cropImg, srcX, srcY, srcW, srcH, 0, 0, lensW, lensH);
+
+    cropMagnifierCtx.strokeStyle = 'rgba(194,58,46,0.9)';
+    cropMagnifierCtx.lineWidth = 1;
+    cropMagnifierCtx.beginPath();
+    cropMagnifierCtx.moveTo(lensW / 2, 0);
+    cropMagnifierCtx.lineTo(lensW / 2, lensH);
+    cropMagnifierCtx.moveTo(0, lensH / 2);
+    cropMagnifierCtx.lineTo(lensW, lensH / 2);
+    cropMagnifierCtx.stroke();
+
+    cropMagnifierCtx.strokeStyle = 'rgba(255,255,255,0.85)';
+    cropMagnifierCtx.strokeRect(1, 1, lensW - 2, lensH - 2);
+}
+
+function showCropMagnifier(pos) {
+    if (!isMobile || !cropMagnifier) return;
+    setCropMagnifierPosition(pos);
+    renderCropMagnifier(pos);
+    cropMagnifier.classList.add('visible');
+}
+
+function updateCropMagnifier(pos) {
+    if (!isMobile || !cropMagnifier || !cropMagnifier.classList.contains('visible')) return;
+    setCropMagnifierPosition(pos);
+    renderCropMagnifier(pos);
+}
 
 function getCropPos(e) {
     var rect = cropCanvas.getBoundingClientRect();
-    return { x: (e.clientX || e.pageX) - rect.left, y: (e.clientY || e.pageY) - rect.top };
+    var clientX = e.clientX;
+    var clientY = e.clientY;
+    if (typeof clientX !== 'number' || typeof clientY !== 'number') {
+        return { x: 0, y: 0 };
+    }
+    var scaleX = rect.width ? (cropCanvas.width / rect.width) : 1;
+    var scaleY = rect.height ? (cropCanvas.height / rect.height) : 1;
+    return {
+        x: clamp((clientX - rect.left) * scaleX, 0, cropCanvas.width),
+        y: clamp((clientY - rect.top) * scaleY, 0, cropCanvas.height)
+    };
+}
+
+function isSelectionValid(sel) {
+    return !!sel && sel.w >= CROP_MIN_SIZE && sel.h >= CROP_MIN_SIZE;
+}
+
+function isPointInSelection(pos, sel) {
+    var rect = getSelectionCanvasRect(sel);
+    if (!rect) return false;
+    return pos.x >= rect.x && pos.x <= rect.x + rect.w && pos.y >= rect.y && pos.y <= rect.y + rect.h;
+}
+
+function getResizeHandle(pos, sel) {
+    var rect = getSelectionCanvasRect(sel);
+    if (!rect) return null;
+    var hitSize = isMobile ? 24 : 14;
+    var handles = {
+        nw: { x: rect.x, y: rect.y },
+        ne: { x: rect.x + rect.w, y: rect.y },
+        sw: { x: rect.x, y: rect.y + rect.h },
+        se: { x: rect.x + rect.w, y: rect.y + rect.h }
+    };
+    for (var key in handles) {
+        if (!handles.hasOwnProperty(key)) continue;
+        var handle = handles[key];
+        if (Math.abs(pos.x - handle.x) <= hitSize && Math.abs(pos.y - handle.y) <= hitSize) {
+            return key;
+        }
+    }
+    return null;
+}
+
+function renderCropCanvas() {
+    if (!cropImg) return;
+    var ctx = cropCanvas.getContext('2d');
+    ctx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+    clampCropViewPan();
+    var drawScale = cropView.baseScale * cropView.zoom;
+    var drawW = cropImg.width * drawScale;
+    var drawH = cropImg.height * drawScale;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(cropImg, cropView.panX, cropView.panY, drawW, drawH);
+
+    if (!cropSelection || cropSelection.w <= 0 || cropSelection.h <= 0) return;
+
+    var rect = getSelectionCanvasRect(cropSelection);
+    if (!rect) return;
+    var rx = rect.x;
+    var ry = rect.y;
+    var rw = rect.w;
+    var rh = rect.h;
+    var x1 = clamp(rx, 0, cropCanvas.width);
+    var y1 = clamp(ry, 0, cropCanvas.height);
+    var x2 = clamp(rx + rw, 0, cropCanvas.width);
+    var y2 = clamp(ry + rh, 0, cropCanvas.height);
+
+    // Draw overlay outside selection
+    ctx.fillStyle = 'rgba(0,0,0,0.32)';
+    ctx.fillRect(0, 0, cropCanvas.width, y1);
+    ctx.fillRect(0, y2, cropCanvas.width, cropCanvas.height - y2);
+    ctx.fillRect(0, y1, x1, y2 - y1);
+    ctx.fillRect(x2, y1, cropCanvas.width - x2, y2 - y1);
+
+    // Draw selection border
+    ctx.strokeStyle = '#c23a2e'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+    ctx.strokeRect(rx, ry, rw, rh);
+    ctx.setLineDash([]);
+
+    // Draw corner handles (for mobile fine-tuning)
+    var handleRadius = isMobile ? CROP_HANDLE_RADIUS + 1 : CROP_HANDLE_RADIUS;
+    var points = [
+        { x: rx, y: ry },
+        { x: rx + rw, y: ry },
+        { x: rx, y: ry + rh },
+        { x: rx + rw, y: ry + rh }
+    ];
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#c23a2e';
+    ctx.lineWidth = 2;
+    points.forEach(function(point) {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, handleRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    });
 }
 
 function startCrop(e) {
+    if (!cropImg || pinchState.active) return;
+
     var pos = getCropPos(e);
-    cropStartX = pos.x; cropStartY = pos.y;
-    isCropping = true;
+    var imgPos = canvasToImagePos(pos);
+    showCropMagnifier(pos);
+    cropInteraction.active = true;
+    cropInteraction.startX = imgPos.x;
+    cropInteraction.startY = imgPos.y;
+    cropInteraction.origin = cloneSelection(cropSelection);
+
+    if (isSelectionValid(cropSelection)) {
+        var handle = getResizeHandle(pos, cropSelection);
+        if (handle) {
+            cropInteraction.mode = 'resize';
+            cropInteraction.handle = handle;
+            return;
+        }
+        if (isPointInSelection(pos, cropSelection)) {
+            cropInteraction.mode = 'move';
+            cropInteraction.handle = null;
+            cropInteraction.offsetX = imgPos.x - cropSelection.x;
+            cropInteraction.offsetY = imgPos.y - cropSelection.y;
+            return;
+        }
+    }
+
+    cropInteraction.mode = 'draw';
+    cropInteraction.handle = null;
+    cropSelection = { x: imgPos.x, y: imgPos.y, w: 0, h: 0 };
+    croppedBlob = null;
+    document.getElementById('cropSubmitBtn').disabled = true;
+    renderCropCanvas();
 }
 
 function moveCrop(e) {
-    if (!isCropping || !cropImg) return;
+    if (!cropInteraction.active || !cropImg || pinchState.active) return;
+
     var pos = getCropPos(e);
-    cropEndX = pos.x; cropEndY = pos.y;
-    var ctx = cropCanvas.getContext('2d');
-    ctx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
-    ctx.drawImage(cropImg, 0, 0, cropCanvas.width, cropCanvas.height);
-    // Draw selection rectangle
-    ctx.strokeStyle = '#c23a2e'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
-    var rx = Math.min(cropStartX, cropEndX), ry = Math.min(cropStartY, cropEndY);
-    var rw = Math.abs(cropEndX - cropStartX), rh = Math.abs(cropEndY - cropStartY);
-    ctx.strokeRect(rx, ry, rw, rh);
-    // Dim outside
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.fillRect(0, 0, cropCanvas.width, ry);
-    ctx.fillRect(0, ry + rh, cropCanvas.width, cropCanvas.height - ry - rh);
-    ctx.fillRect(0, ry, rx, rh);
-    ctx.fillRect(rx + rw, ry, cropCanvas.width - rx - rw, rh);
-    ctx.setLineDash([]);
+    var imgPos = canvasToImagePos(pos);
+    updateCropMagnifier(pos);
+    if (cropInteraction.mode === 'draw') {
+        var x = Math.min(cropInteraction.startX, imgPos.x);
+        var y = Math.min(cropInteraction.startY, imgPos.y);
+        cropSelection = {
+            x: x,
+            y: y,
+            w: Math.abs(imgPos.x - cropInteraction.startX),
+            h: Math.abs(imgPos.y - cropInteraction.startY)
+        };
+    } else if (cropInteraction.mode === 'move' && cropSelection) {
+        cropSelection.x = clamp(imgPos.x - cropInteraction.offsetX, 0, cropImg.width - cropSelection.w);
+        cropSelection.y = clamp(imgPos.y - cropInteraction.offsetY, 0, cropImg.height - cropSelection.h);
+    } else if (cropInteraction.mode === 'resize' && cropInteraction.origin) {
+        var origin = cropInteraction.origin;
+        var x1 = origin.x;
+        var y1 = origin.y;
+        var x2 = origin.x + origin.w;
+        var y2 = origin.y + origin.h;
+
+        if (cropInteraction.handle === 'nw') {
+            x1 = clamp(imgPos.x, 0, x2 - CROP_MIN_SIZE);
+            y1 = clamp(imgPos.y, 0, y2 - CROP_MIN_SIZE);
+        } else if (cropInteraction.handle === 'ne') {
+            x2 = clamp(imgPos.x, x1 + CROP_MIN_SIZE, cropImg.width);
+            y1 = clamp(imgPos.y, 0, y2 - CROP_MIN_SIZE);
+        } else if (cropInteraction.handle === 'sw') {
+            x1 = clamp(imgPos.x, 0, x2 - CROP_MIN_SIZE);
+            y2 = clamp(imgPos.y, y1 + CROP_MIN_SIZE, cropImg.height);
+        } else if (cropInteraction.handle === 'se') {
+            x2 = clamp(imgPos.x, x1 + CROP_MIN_SIZE, cropImg.width);
+            y2 = clamp(imgPos.y, y1 + CROP_MIN_SIZE, cropImg.height);
+        }
+
+        cropSelection = {
+            x: x1,
+            y: y1,
+            w: x2 - x1,
+            h: y2 - y1
+        };
+    }
+
+    renderCropCanvas();
+}
+
+function buildCroppedBlobFromSelection() {
+    if (!cropImg || !isSelectionValid(cropSelection)) {
+        croppedBlob = null;
+        document.getElementById('cropSubmitBtn').disabled = true;
+        return;
+    }
+
+    var rx = clamp(cropSelection.x, 0, cropImg.width - 1);
+    var ry = clamp(cropSelection.y, 0, cropImg.height - 1);
+    var rw = Math.min(cropSelection.w, cropImg.width - rx);
+    var rh = Math.min(cropSelection.h, cropImg.height - ry);
+
+    var targetW = Math.max(1, Math.round(rw));
+    var targetH = Math.max(1, Math.round(rh));
+    var c2 = document.createElement('canvas');
+    c2.width = targetW;
+    c2.height = targetH;
+    c2.getContext('2d').drawImage(cropImg, rx, ry, rw, rh, 0, 0, targetW, targetH);
+    c2.toBlob(function(blob) {
+        croppedBlob = blob;
+        document.getElementById('cropSubmitBtn').disabled = !blob;
+    }, 'image/jpeg', 0.9);
 }
 
 function endCrop() {
-    if (!isCropping || !cropImg) return;
-    isCropping = false;
-    var scale = cropCanvas._scale || 1;
-    var rx = Math.min(cropStartX, cropEndX) / scale;
-    var ry = Math.min(cropStartY, cropEndY) / scale;
-    var rw = Math.abs(cropEndX - cropStartX) / scale;
-    var rh = Math.abs(cropEndY - cropStartY) / scale;
-    if (rw < 20 || rh < 20) return; // Too small
-    // Crop from original image
-    var c2 = document.createElement('canvas');
-    c2.width = rw; c2.height = rh;
-    c2.getContext('2d').drawImage(cropImg, rx, ry, rw, rh, 0, 0, rw, rh);
-    c2.toBlob(function(blob) {
-        croppedBlob = blob;
-        document.getElementById('cropSubmitBtn').disabled = false;
-    }, 'image/jpeg', 0.9);
+    if (!cropInteraction.active || !cropImg) return;
+
+    hideCropMagnifier();
+    cropInteraction.active = false;
+    cropInteraction.mode = null;
+    cropInteraction.handle = null;
+    cropInteraction.origin = null;
+
+    if (!isSelectionValid(cropSelection)) {
+        cropSelection = null;
+        croppedBlob = null;
+        document.getElementById('cropSubmitBtn').disabled = true;
+        renderCropCanvas();
+        return;
+    }
+
+    renderCropCanvas();
+    buildCroppedBlobFromSelection();
 }
 
 function resetCrop() {
     croppedBlob = null;
+    cropSelection = null;
+    hideCropMagnifier();
+    endPinch();
+    cropView.zoom = 1;
+    cropView.panX = 0;
+    cropView.panY = 0;
+    clampCropViewPan();
+    cropInteraction.active = false;
+    cropInteraction.mode = null;
+    cropInteraction.handle = null;
+    cropInteraction.origin = null;
     document.getElementById('cropSubmitBtn').disabled = true;
     if (cropImg) {
-        var ctx = cropCanvas.getContext('2d');
-        ctx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
-        ctx.drawImage(cropImg, 0, 0, cropCanvas.width, cropCanvas.height);
+        renderCropCanvas();
     }
 }
 
@@ -977,9 +1449,17 @@ function submitCroppedChar() {
 }
 
 // ==================== Image Compression ====================
-function compressImage(file, maxSize, quality) {
+function compressImage(file, maxSize, quality, options) {
     return new Promise(async (resolve, reject) => {
         try {
+            options = options || {};
+            var keepOriginalThresholdMB = typeof options.keepOriginalThresholdMB === 'number' ? options.keepOriginalThresholdMB : 8;
+            var keepOriginalThresholdBytes = keepOriginalThresholdMB * 1024 * 1024;
+            if (file.size <= keepOriginalThresholdBytes) {
+                resolve(file);
+                return;
+            }
+
             let bitmap;
             try {
                 if (typeof createImageBitmap === 'function') { bitmap = await createImageBitmap(file); }
@@ -998,8 +1478,15 @@ function compressImage(file, maxSize, quality) {
             var ctx = canvas.getContext('2d'); ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, width, height);
             ctx.drawImage(bitmap, 0, 0, width, height);
             canvas.toBlob(function(blob) {
-                if (blob) { resolve(new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', { type: 'image/jpeg' })); }
-                else { reject(new Error('Canvas 压缩失败')); }
+                if (!blob) {
+                    reject(new Error('Canvas 压缩失败'));
+                    return;
+                }
+                if (blob.size >= file.size * 0.97) {
+                    resolve(file);
+                    return;
+                }
+                resolve(new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', { type: 'image/jpeg' }));
             }, 'image/jpeg', quality);
         } catch (err) { reject(err); }
     });
@@ -1070,9 +1557,11 @@ async function submitAnalysis() {
     streamedText = ''; aiOutputStarted = false;
 
     try {
-        showThinkingText('正在优化图片体积...');
-        var compressedFile = await compressImage(selectedFile, 1024, 0.8);
-        document.getElementById('loadingFileSize').textContent = (compressedFile.size / 1024).toFixed(1) + ' KB (已压缩)';
+        showThinkingText('正在检查图片尺寸...');
+        var compressedFile = await compressImage(selectedFile, 2048, 0.88, { keepOriginalThresholdMB: 8 });
+        var compressedWhole = compressedFile !== selectedFile;
+        document.getElementById('loadingFileSize').textContent = (compressedFile.size / 1024).toFixed(1) + ' KB' + (compressedWhole ? ' (已优化)' : ' (原图)');
+        showThinkingText(compressedWhole ? '已优化图片体积，准备上传...' : '保持原图上传中...');
 
         var formData = new FormData();
         formData.append('file', compressedFile);
@@ -1129,9 +1618,11 @@ async function submitSingleAnalysis() {
     streamedText = ''; aiOutputStarted = false;
 
     try {
-        showThinkingText('正在优化图片体积...');
-        var compressedFile = await compressImage(singleSelectedFile, 512, 0.85);
-        document.getElementById('loadingFileSize').textContent = (compressedFile.size / 1024).toFixed(1) + ' KB (已压缩)';
+        showThinkingText('正在检查图片尺寸...');
+        var compressedFile = await compressImage(singleSelectedFile, 1600, 0.9, { keepOriginalThresholdMB: 6 });
+        var compressedSingle = compressedFile !== singleSelectedFile;
+        document.getElementById('loadingFileSize').textContent = (compressedFile.size / 1024).toFixed(1) + ' KB' + (compressedSingle ? ' (已优化)' : ' (原图)');
+        showThinkingText(compressedSingle ? '已优化图片体积，准备上传...' : '保持原图上传中...');
 
         var formData = new FormData();
         formData.append('file', compressedFile);
@@ -1402,7 +1893,16 @@ function resetPage() {
     selectedFile = null; singleSelectedFile = null;
     previewDataUrl = null; singlePreviewDataUrl = null;
     streamedText = ''; aiOutputStarted = false;
-    croppedBlob = null; cropImg = null;
+    croppedBlob = null; cropImg = null; cropSelection = null;
+    hideCropMagnifier();
+    endPinch();
+    cropView.zoom = 1;
+    cropView.panX = 0;
+    cropView.panY = 0;
+    cropInteraction.active = false;
+    cropInteraction.mode = null;
+    cropInteraction.handle = null;
+    cropInteraction.origin = null;
     // Reset file inputs
     ['fileInput','cameraInput','albumInput','singleFileInput','singleCameraInput','singleAlbumInput','cropPageInput'].forEach(function(id) {
         var el = document.getElementById(id); if (el) el.value = '';
