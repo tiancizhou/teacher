@@ -4,8 +4,6 @@ import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
-import java.time.LocalDateTime;
-
 /**
  * 作业表 —— 记录每次上传的书法作业和批改状态。
  */
@@ -32,6 +30,6 @@ public class HomeworkEntity {
 
     private Long processingTimeMs;
 
-    @Builder.Default
-    private LocalDateTime createdAt = LocalDateTime.now();
+    /** SQLite TEXT 格式（yyyy-MM-dd HH:mm:ss），由数据库默认值填充 */
+    private String createdAt;
 }

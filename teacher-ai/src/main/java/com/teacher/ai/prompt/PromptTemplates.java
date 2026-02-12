@@ -34,6 +34,7 @@ public class PromptTemplates {
 
     // ===== 单字模式 =====
     private String unifiedAnalysis;
+    private String singleCharAnalysis;
 
     // ===== 多 Agent 模式 =====
     private String structureAnalysis;
@@ -44,11 +45,12 @@ public class PromptTemplates {
     void loadPrompts() {
         wholePageAnalysis       = loadPrompt("whole-page-analysis.md");
         unifiedAnalysis         = loadPrompt("unified-analysis.md");
+        singleCharAnalysis      = loadPrompt("single-char-analysis.md");
         structureAnalysis       = loadPrompt("structure-analysis.md");
         strokeAnalysis          = loadPrompt("stroke-analysis.md");
         commentGeneratorTemplate = loadPrompt("comment-generator.md");
 
-        log.info("已加载 5 个 Prompt 模板 (来自 classpath:prompts/*.md)");
+        log.info("已加载 6 个 Prompt 模板 (来自 classpath:prompts/*.md)");
     }
 
     // ======================== Getter ========================
@@ -61,6 +63,11 @@ public class PromptTemplates {
     /** 单字综合分析 Prompt */
     public String getUnifiedAnalysis() {
         return unifiedAnalysis;
+    }
+
+    /** 单字精批 Prompt（多维度深度分析） */
+    public String getSingleCharAnalysis() {
+        return singleCharAnalysis;
     }
 
     /** 结构分析 Prompt（多 Agent 模式） */

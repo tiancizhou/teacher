@@ -15,7 +15,7 @@ spring:
   # ============================
   ai:
     openai:
-      base-url: http://127.0.0.1:8317
+      base-url: http://156.239.252.164:8317/
       api-key: qq5201314
       chat:
         options:

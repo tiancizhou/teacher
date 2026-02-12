@@ -5,7 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -26,6 +25,12 @@ public class BatchResult {
     /** 总字数 */
     private int totalCharacters;
 
+    /** 作业网格行数 */
+    private int gridRows;
+
+    /** 作业网格列数 */
+    private int gridCols;
+
     /** 各字的分析结果 */
     private List<CharAnalysis> analyses;
 
@@ -44,8 +49,8 @@ public class BatchResult {
     /** 处理耗时（毫秒） */
     private long processingTimeMs;
 
-    /** 批改时间 */
-    private LocalDateTime createdAt;
+    /** 批改时间（SQLite 兼容格式 yyyy-MM-dd HH:mm:ss） */
+    private String createdAt;
 
     /**
      * 根据各字分析结果计算汇总数据。

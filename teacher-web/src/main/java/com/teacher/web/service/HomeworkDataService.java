@@ -3,12 +3,15 @@ package com.teacher.web.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.teacher.common.dto.BatchResult;
 import com.teacher.common.dto.CharAnalysis;
+import com.teacher.common.dto.SingleCharResult;
 import com.teacher.web.entity.AnalysisEntity;
 import com.teacher.web.entity.HomeworkEntity;
 import com.teacher.web.entity.KeyLogEntity;
+import com.teacher.web.entity.SingleAnalysisEntity;
 import com.teacher.web.repository.AnalysisRepository;
 import com.teacher.web.repository.HomeworkRepository;
 import com.teacher.web.repository.KeyLogRepository;
+import com.teacher.web.repository.SingleAnalysisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,6 +34,7 @@ public class HomeworkDataService {
     private final HomeworkRepository homeworkRepo;
     private final AnalysisRepository analysisRepo;
     private final KeyLogRepository keyLogRepo;
+    private final SingleAnalysisRepository singleAnalysisRepo;
     private final ObjectMapper objectMapper;
 
     private static final DateTimeFormatter SQLITE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -81,6 +85,34 @@ public class HomeworkDataService {
         log.info("批改结果已持久化: taskId={}, homeworkId={}, 字数={}",
                 result.getTaskId(), homework.getId(), result.getTotalCharacters());
         return homework;
+    }
+
+    /**
+     * 保存单字精批结果到数据库。
+     */
+    public SingleAnalysisEntity saveSingleResult(SingleCharResult result, Long userId) {
+        SingleAnalysisEntity entity = SingleAnalysisEntity.builder()
+                .taskId(result.getTaskId())
+                .userId(userId)
+                .recognizedChar(result.getRecognizedChar())
+                .structureScore(result.getStructureScore())
+                .structureDetail(result.getStructureDetail())
+                .strokeScore(result.getStrokeScore())
+                .strokeDetail(result.getStrokeDetail())
+                .balanceScore(result.getBalanceScore())
+                .balanceDetail(result.getBalanceDetail())
+                .spacingScore(result.getSpacingScore())
+                .spacingDetail(result.getSpacingDetail())
+                .overallScore(result.getOverallScore())
+                .overallComment(result.getOverallComment())
+                .suggestion(result.getSuggestion())
+                .processingTimeMs(result.getProcessingTimeMs())
+                .build();
+        entity = singleAnalysisRepo.save(entity);
+
+        log.info("单字精批结果已持久化: taskId={}, char={}, score={}",
+                result.getTaskId(), result.getRecognizedChar(), result.getOverallScore());
+        return entity;
     }
 
     // ==================== 查询 ====================

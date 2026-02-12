@@ -4,6 +4,7 @@ import com.teacher.ai.config.AiProperties;
 import com.teacher.ai.prompt.PromptTemplates;
 import com.teacher.common.dto.BatchResult;
 import com.teacher.common.dto.CharAnalysis;
+import com.teacher.common.dto.SingleCharResult;
 import com.teacher.common.util.IdGenerator;
 import com.teacher.dispatcher.pool.ApiKeyPool;
 import jakarta.annotation.PostConstruct;
@@ -31,6 +32,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -75,16 +77,24 @@ public class HomeworkGradingService {
 
     // ======================== 正则模式（预编译） ========================
 
-    /** 总览：共识别 20 个汉字：飞,流,直,... */
+    /** 总览：共识别 20 个汉字（4 行 5 列）：飞,流,直,... */
     private static final Pattern P_OVERVIEW = Pattern.compile(
+            "共识别\\s*(\\d+)\\s*个汉字[（(]\\s*(\\d+)\\s*行\\s*(\\d+)\\s*列\\s*[）)][：:]\\s*(.+)");
+
+    /** 总览（兜底，不含行列信息）：共识别 20 个汉字：飞,流,直,... */
+    private static final Pattern P_OVERVIEW_FALLBACK = Pattern.compile(
             "共识别\\s*(\\d+)\\s*个汉字[：:]\\s*(.+)");
 
     /** 整体评分：结构：73 分 | 笔画：71 分 | 综合：73 分 */
     private static final Pattern P_SCORES = Pattern.compile(
             "结构[：:]\\s*(\\d+)\\s*分\\s*[|｜]\\s*笔画[：:]\\s*(\\d+)\\s*分\\s*[|｜]\\s*综合[：:]\\s*(\\d+)\\s*分");
 
-    /** 问题字标题：1.「疑」（综合 61 分） */
+    /** 问题字标题：1.「疑」（第3行第2列，综合 61 分） */
     private static final Pattern P_CHAR_HEADER = Pattern.compile(
+            "\\d+[.．、]\\s*「(.+?)」[（(]第(\\d+)行第(\\d+)列[，,]\\s*综合\\s*(\\d+)\\s*分[）)]");
+
+    /** 问题字标题（兜底，不含位置信息）：1.「疑」（综合 61 分） */
+    private static final Pattern P_CHAR_HEADER_FALLBACK = Pattern.compile(
             "\\d+[.．、]\\s*「(.+?)」.*综合\\s*(\\d+)\\s*分");
 
     /** 结构评分：结构（62 分）：描述 */
@@ -98,6 +108,16 @@ public class HomeworkGradingService {
     /** 建议：具体建议 */
     private static final Pattern P_SUGGESTION = Pattern.compile(
             "建议[：:]\\s*(.+)");
+
+    // ---- 单字精批正则 ----
+
+    /** 单字识别：字：X */
+    private static final Pattern P_SINGLE_CHAR = Pattern.compile(
+            "字[：:]\\s*(.+)");
+
+    /** 单字评分：结构：XX 分 | 笔画：XX 分 | 重心：XX 分 | 间架：XX 分 | 综合：XX 分 */
+    private static final Pattern P_SINGLE_SCORES = Pattern.compile(
+            "结构[：:]\\s*(\\d+)\\s*分\\s*[|｜]\\s*笔画[：:]\\s*(\\d+)\\s*分\\s*[|｜]\\s*重心[：:]\\s*(\\d+)\\s*分\\s*[|｜]\\s*间架[：:]\\s*(\\d+)\\s*分\\s*[|｜]\\s*综合[：:]\\s*(\\d+)\\s*分");
 
     // ======================== 阻塞式调用 ========================
 
@@ -127,7 +147,7 @@ public class HomeworkGradingService {
 
             BatchResult result = parseReadableResponse(responseText, taskId);
             result.setProcessingTimeMs(System.currentTimeMillis() - startTime);
-            result.setCreatedAt(LocalDateTime.now());
+            result.setCreatedAt(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
             log.info("整页批改任务 {} 完成, 耗时 {}ms, 识别 {} 字, 问题字 {} 个, 综合分 {}",
                     taskId, result.getProcessingTimeMs(),
@@ -206,7 +226,7 @@ public class HomeworkGradingService {
 
             BatchResult result = parseReadableResponse(fullText, taskId);
             result.setProcessingTimeMs(System.currentTimeMillis() - startTime);
-            result.setCreatedAt(LocalDateTime.now());
+            result.setCreatedAt(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
             log.info("流式批改任务 {} 完成, 耗时 {}ms, 识别 {} 字, 综合分 {}",
                     taskId, result.getProcessingTimeMs(),
@@ -302,6 +322,191 @@ public class HomeworkGradingService {
 
     // ======================== 正则解析可读文字 ========================
 
+    // ======================== 单字精批 ========================
+
+    /**
+     * 单字精批（阻塞式）。
+     */
+    public SingleCharResult gradeSingleCharImage(byte[] imageBytes) {
+        long startTime = System.currentTimeMillis();
+        String taskId = IdGenerator.withPrefix("single");
+
+        log.info("开始单字精批任务 {}", taskId);
+
+        String apiKey = keyPool.borrowKey();
+
+        try {
+            byte[] compressed = compressImageForAi(imageBytes);
+            UserMessage userMessage = buildVisionMessage(compressed, promptTemplates.getSingleCharAnalysis());
+
+            ChatResponse response = chatModel.call(new Prompt(List.of(userMessage)));
+            String responseText = response.getResult().getOutput().getText();
+
+            log.info("单字精批 AI 响应长度: {} 字符", responseText.length());
+            log.debug("单字精批 AI 原始响应:\n{}", responseText);
+
+            keyPool.returnKey(apiKey);
+            apiKey = null;
+
+            SingleCharResult result = parseSingleCharResponse(responseText, taskId);
+            result.setProcessingTimeMs(System.currentTimeMillis() - startTime);
+            result.setCreatedAt(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+
+            return result;
+
+        } catch (Exception e) {
+            if (apiKey != null) {
+                keyPool.markFailed(apiKey);
+            }
+            throw new RuntimeException("单字精批失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 单字精批（流式）。
+     */
+    public void gradeSingleCharStream(byte[] imageBytes,
+                                      Consumer<String> onToken,
+                                      Consumer<SingleCharResult> onResult,
+                                      Consumer<String> onError) {
+        long startTime = System.currentTimeMillis();
+        String taskId = IdGenerator.withPrefix("single");
+
+        log.info("开始流式单字精批任务 {}", taskId);
+
+        String apiKey = keyPool.borrowKey();
+
+        try {
+            byte[] compressed = compressImageForAi(imageBytes);
+            UserMessage userMessage = buildVisionMessage(compressed, promptTemplates.getSingleCharAnalysis());
+
+            Flux<ChatResponse> flux = chatModel.stream(new Prompt(List.of(userMessage)));
+
+            StringBuilder fullContent = new StringBuilder();
+            long[] firstTokenTime = {0};
+            int[] chunkCount = {0};
+
+            flux.toStream().forEach(chatResponse -> {
+                if (chatResponse.getResult() != null
+                        && chatResponse.getResult().getOutput() != null) {
+                    String text = chatResponse.getResult().getOutput().getText();
+                    if (text != null && !text.isEmpty()) {
+                        if (firstTokenTime[0] == 0) {
+                            firstTokenTime[0] = System.currentTimeMillis();
+                            log.info("单字精批任务 {} 首 token 到达，TTFT: {}ms", taskId,
+                                    firstTokenTime[0] - startTime);
+                        }
+                        chunkCount[0]++;
+                        fullContent.append(text);
+                        onToken.accept(text);
+                    }
+                }
+            });
+
+            log.info("单字精批任务 {} 流式统计: {} 个 chunk, TTFT {}ms, 总耗时 {}ms",
+                    taskId, chunkCount[0],
+                    firstTokenTime[0] > 0 ? firstTokenTime[0] - startTime : -1,
+                    System.currentTimeMillis() - startTime);
+
+            keyPool.returnKey(apiKey);
+            apiKey = null;
+
+            String fullText = fullContent.toString();
+            if (fullText.isEmpty()) {
+                throw new RuntimeException("AI 返回空内容");
+            }
+
+            SingleCharResult result = parseSingleCharResponse(fullText, taskId);
+            result.setProcessingTimeMs(System.currentTimeMillis() - startTime);
+            result.setCreatedAt(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+
+            onResult.accept(result);
+
+        } catch (Exception e) {
+            if (apiKey != null) {
+                keyPool.markFailed(apiKey);
+            }
+            log.error("流式单字精批失败", e);
+            onError.accept("单字精批失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 解析单字精批 AI 响应。
+     */
+    private SingleCharResult parseSingleCharResponse(String text, String taskId) {
+        log.debug("开始解析单字精批响应");
+
+        // 识别的字
+        String recognizedChar = "?";
+        Matcher mChar = P_SINGLE_CHAR.matcher(text);
+        if (mChar.find()) {
+            recognizedChar = mChar.group(1).trim();
+        }
+
+        // 评分
+        int structureScore = 60, strokeScore = 60, balanceScore = 60, spacingScore = 60, overallScore = 60;
+        Matcher mScores = P_SINGLE_SCORES.matcher(text);
+        if (mScores.find()) {
+            structureScore = Integer.parseInt(mScores.group(1));
+            strokeScore = Integer.parseInt(mScores.group(2));
+            balanceScore = Integer.parseInt(mScores.group(3));
+            spacingScore = Integer.parseInt(mScores.group(4));
+            overallScore = Integer.parseInt(mScores.group(5));
+        }
+
+        // 各维度分析
+        String structureDetail = extractSection(text, "【结构分析】");
+        String strokeDetail = extractSection(text, "【笔画分析】");
+        String balanceDetail = extractSection(text, "【重心分析】");
+        String spacingDetail = extractSection(text, "【间架分析】");
+        String overallComment = extractSection(text, "【总评】");
+        String suggestion = extractSection(text, "【练习建议】");
+
+        log.info("单字精批解析完成: 字={}, 结构={}, 笔画={}, 重心={}, 间架={}, 综合={}",
+                recognizedChar, structureScore, strokeScore, balanceScore, spacingScore, overallScore);
+
+        return SingleCharResult.builder()
+                .taskId(taskId)
+                .recognizedChar(recognizedChar)
+                .structureScore(structureScore)
+                .structureDetail(structureDetail)
+                .strokeScore(strokeScore)
+                .strokeDetail(strokeDetail)
+                .balanceScore(balanceScore)
+                .balanceDetail(balanceDetail)
+                .spacingScore(spacingScore)
+                .spacingDetail(spacingDetail)
+                .overallScore(overallScore)
+                .overallComment(overallComment)
+                .suggestion(suggestion)
+                .build();
+    }
+
+    /**
+     * 提取文本中【标题】到下一个【】或文末之间的内容。
+     */
+    private String extractSection(String text, String sectionTitle) {
+        int start = text.indexOf(sectionTitle);
+        if (start < 0) return "";
+        start += sectionTitle.length();
+        // 找下一个【...】标记
+        int nextSection = text.indexOf("【", start);
+        String content;
+        if (nextSection > 0) {
+            content = text.substring(start, nextSection).trim();
+        } else {
+            content = text.substring(start).trim();
+        }
+        // 限制长度
+        if (content.length() > 500) {
+            content = content.substring(0, 500);
+        }
+        return content;
+    }
+
+    // ======================== 正则解析可读文字（整页模式） ========================
+
     /**
      * 从 AI 输出的结构化可读文字中提取评分和评语。
      * 格式约定见 {@link PromptTemplates#WHOLE_PAGE_ANALYSIS}。
@@ -309,13 +514,23 @@ public class HomeworkGradingService {
     private BatchResult parseReadableResponse(String text, String taskId) {
         log.debug("开始正则解析可读文字响应");
 
-        // 1. 提取总字数和识别的汉字
+        // 1. 提取总字数、网格布局和识别的汉字
         int totalChars = 0;
+        int gridRows = 0, gridCols = 0;
         String recognizedChars = "";
         Matcher mOverview = P_OVERVIEW.matcher(text);
         if (mOverview.find()) {
             totalChars = Integer.parseInt(mOverview.group(1));
-            recognizedChars = mOverview.group(2).trim();
+            gridRows = Integer.parseInt(mOverview.group(2));
+            gridCols = Integer.parseInt(mOverview.group(3));
+            recognizedChars = mOverview.group(4).trim();
+        } else {
+            // 兜底：没有行列信息
+            Matcher mFallback = P_OVERVIEW_FALLBACK.matcher(text);
+            if (mFallback.find()) {
+                totalChars = Integer.parseInt(mFallback.group(1));
+                recognizedChars = mFallback.group(2).trim();
+            }
         }
 
         // 2. 提取整体评分
@@ -349,14 +564,28 @@ public class HomeworkGradingService {
         int reviewEnd = summaryIdx >= 0 ? summaryIdx : text.length();
         if (reviewStart >= 0) {
             String reviewSection = text.substring(reviewStart, reviewEnd);
-            // 按问题字标题分段
+            // 按问题字标题分段（优先匹配带位置信息的格式）
             Matcher mHeader = P_CHAR_HEADER.matcher(reviewSection);
-            List<int[]> charPositions = new ArrayList<>(); // [matchStart, charOverallScore]
+            List<int[]> charPositions = new ArrayList<>(); // [matchStart, charOverallScore, row, col]
             List<String> charNames = new ArrayList<>();
+            boolean hasPosition = false;
 
             while (mHeader.find()) {
-                charPositions.add(new int[]{mHeader.start(), Integer.parseInt(mHeader.group(2))});
+                int row = Integer.parseInt(mHeader.group(2));
+                int col = Integer.parseInt(mHeader.group(3));
+                int score = Integer.parseInt(mHeader.group(4));
+                charPositions.add(new int[]{mHeader.start(), score, row, col});
                 charNames.add(mHeader.group(1));
+                hasPosition = true;
+            }
+
+            // 兜底：如果没有匹配到带位置的格式，用旧格式
+            if (!hasPosition) {
+                Matcher mFallback = P_CHAR_HEADER_FALLBACK.matcher(reviewSection);
+                while (mFallback.find()) {
+                    charPositions.add(new int[]{mFallback.start(), Integer.parseInt(mFallback.group(2)), 0, 0});
+                    charNames.add(mFallback.group(1));
+                }
             }
 
             for (int i = 0; i < charPositions.size(); i++) {
@@ -392,9 +621,14 @@ public class HomeworkGradingService {
                     suggestion = mSugg.group(1).trim();
                 }
 
+                int charRow = charPositions.get(i)[2];
+                int charCol = charPositions.get(i)[3];
+
                 problemChars.add(CharAnalysis.builder()
                         .charIndex(i)
                         .recognizedChar(charName)
+                        .row(charRow)
+                        .column(charCol)
                         .structureScore(charStructScore)
                         .structureComment(charStructComment)
                         .strokeScore(charStrokeScore)
@@ -406,12 +640,14 @@ public class HomeworkGradingService {
             }
         }
 
-        log.info("正则解析完成: 识别 {} 字 ({}), 问题字 {} 个, 综合分 {}",
-                totalChars, recognizedChars, problemChars.size(), overallScore);
+        log.info("正则解析完成: 识别 {} 字 ({}), 布局 {}行{}列, 问题字 {} 个, 综合分 {}",
+                totalChars, recognizedChars, gridRows, gridCols, problemChars.size(), overallScore);
 
         return BatchResult.builder()
                 .taskId(taskId)
                 .totalCharacters(totalChars)
+                .gridRows(gridRows)
+                .gridCols(gridCols)
                 .analyses(problemChars)
                 .avgStructureScore(structureScore)
                 .avgStrokeScore(strokeScore)

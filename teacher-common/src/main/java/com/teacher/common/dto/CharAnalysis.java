@@ -20,6 +20,12 @@ public class CharAnalysis {
     /** 识别出的汉字（如果能识别） */
     private String recognizedChar;
 
+    /** 在作业网格中的行号（从1开始，从上往下） */
+    private int row;
+
+    /** 在作业网格中的列号（从1开始，从左往右） */
+    private int column;
+
     /** 结构评分 (0-100)：重心、间架、比例 */
     private int structureScore;
 
@@ -40,4 +46,7 @@ public class CharAnalysis {
 
     /** 改进建议 */
     private String suggestion;
+
+    /** 从原图中裁剪出的字符图片 Base64（由后端字符切分器提供） */
+    private String charImageBase64;
 }

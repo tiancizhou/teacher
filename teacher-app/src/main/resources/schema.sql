@@ -76,6 +76,61 @@ CREATE TABLE IF NOT EXISTS t_key_log (
 );
 
 -- -------------------------------------------
+-- 字帖模板表：预定义的字帖网格布局
+-- 核心价值：确定性网格裁切，匹配行列位置
+-- -------------------------------------------
+CREATE TABLE IF NOT EXISTS t_copybook_template (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,  -- 主键
+    name         TEXT    NOT NULL,                    -- 模板名称（如"田字格 10x10"）
+    grid_type    TEXT    NOT NULL,                    -- 格线类型：TIAN=田字格 / MI=米字格 / HUI=回宫格 / PLAIN=无格线
+    grid_rows    INTEGER NOT NULL,                    -- 网格行数
+    grid_cols    INTEGER NOT NULL,                    -- 网格列数
+    header_ratio REAL    NOT NULL DEFAULT 0.0,        -- 顶部非书写区占比（0~0.3）
+    description  TEXT,                                -- 补充描述
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+-- 预置常用字帖模板
+INSERT OR IGNORE INTO t_copybook_template (id, name, grid_type, grid_rows, grid_cols, header_ratio, description)
+VALUES
+    (1,  '田字格 8x8',   'TIAN',  8,  8,  0.05, '标准田字格练习纸，8行8列'),
+    (2,  '田字格 10x10', 'TIAN',  10, 10, 0.05, '标准田字格练习纸，10行10列'),
+    (3,  '田字格 12x8',  'TIAN',  12, 8,  0.05, '标准田字格练习纸，12行8列'),
+    (4,  '田字格 10x8',  'TIAN',  10, 8,  0.05, '标准田字格练习纸，10行8列'),
+    (5,  '米字格 8x6',   'MI',    8,  6,  0.05, '米字格练习纸，8行6列'),
+    (6,  '米字格 8x8',   'MI',    8,  8,  0.05, '米字格练习纸，8行8列'),
+    (7,  '米字格 10x8',  'MI',    10, 8,  0.05, '米字格练习纸，10行8列'),
+    (8,  '回宫格 8x6',   'HUI',   8,  6,  0.05, '回宫格练习纸，8行6列'),
+    (9,  '回宫格 10x8',  'HUI',   10, 8,  0.05, '回宫格练习纸，10行8列'),
+    (10, '无格线 8x8',   'PLAIN', 8,  8,  0.0,  '无格线练习纸，8行8列'),
+    (11, '田字格 6x6',   'TIAN',  6,  6,  0.05, '大格田字格练习纸，6行6列'),
+    (12, '田字格 14x10', 'TIAN',  14, 10, 0.05, '田字格练习纸，14行10列');
+
+-- -------------------------------------------
+-- 单字精批结果表：每次单字精批一条记录
+-- 核心价值：五维度深度分析，支撑单字成长追踪
+-- -------------------------------------------
+CREATE TABLE IF NOT EXISTS t_single_analysis (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,  -- 主键
+    task_id           TEXT    NOT NULL UNIQUE,             -- 业务任务ID（如 single-a1b2c3d4）
+    user_id           INTEGER,                            -- 关联用户ID（匿名为空）
+    recognized_char   TEXT,                                -- AI 识别出的汉字
+    structure_score   INTEGER,                            -- 结构评分 0-100
+    structure_detail  TEXT,                                -- 结构分析详情
+    stroke_score      INTEGER,                            -- 笔画评分 0-100
+    stroke_detail     TEXT,                                -- 笔画分析详情
+    balance_score     INTEGER,                            -- 重心评分 0-100
+    balance_detail    TEXT,                                -- 重心分析详情
+    spacing_score     INTEGER,                            -- 间架评分 0-100
+    spacing_detail    TEXT,                                -- 间架分析详情
+    overall_score     INTEGER,                            -- 综合评分 0-100
+    overall_comment   TEXT,                                -- 总评
+    suggestion        TEXT,                                -- 练习建议
+    processing_time_ms INTEGER,                           -- 处理耗时（毫秒）
+    created_at        TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+-- -------------------------------------------
 -- 索引：按查询场景优化
 -- -------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_user_open_id       ON t_user(open_id);          -- 微信登录查找
@@ -86,3 +141,6 @@ CREATE INDEX IF NOT EXISTS idx_analysis_char       ON t_analysis(recognized_char
 CREATE INDEX IF NOT EXISTS idx_analysis_cache_key  ON t_analysis(cache_key);    -- 缓存命中：字帖+汉字 快速匹配
 CREATE INDEX IF NOT EXISTS idx_keylog_time         ON t_key_log(created_at);    -- 按时间段统计算力消耗
 CREATE INDEX IF NOT EXISTS idx_keylog_user         ON t_key_log(user_id);       -- 按用户统计调用频率（防刷）
+CREATE INDEX IF NOT EXISTS idx_single_user         ON t_single_analysis(user_id);          -- 用户单字精批历史
+CREATE INDEX IF NOT EXISTS idx_single_char         ON t_single_analysis(recognized_char);  -- 按汉字查单字历史
+CREATE INDEX IF NOT EXISTS idx_single_task         ON t_single_analysis(task_id);           -- taskId 查询
